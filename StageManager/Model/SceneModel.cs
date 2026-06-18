@@ -2,6 +2,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using StageManager.Native.PInvoke;
+using StageManager.Native.Window;
 
 namespace StageManager.Model
 {
@@ -97,6 +99,12 @@ namespace StageManager.Model
 		public string Title => Scene?.Title ?? "";
 
 		public bool IsSelected => Scene?.IsSelected ?? false;
+
+		// Which monitor this scene's window currently sits on (used to route the
+		// scene to that monitor's strip). Recomputed on read so it stays current.
+		public IntPtr MonitorHandle => Scene?.Windows.FirstOrDefault() is IWindow w
+			? Win32.GetMonitor(w.Handle)
+			: IntPtr.Zero;
 
 		public bool IsVisible
 		{

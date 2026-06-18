@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace StageManager.Native.PInvoke
@@ -9,6 +10,32 @@ namespace StageManager.Native.PInvoke
 
 		[DllImport("user32.dll")]
 		private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+		private delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdc, IntPtr lprcMonitor, IntPtr dwData);
+
+		[DllImport("user32.dll")]
+		private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumProc lpfnEnum, IntPtr dwData);
+
+		public readonly struct MonitorArea
+		{
+			public MonitorArea(IntPtr handle, Rect work) { Handle = handle; Work = work; }
+			public IntPtr Handle { get; }
+			public Rect Work { get; }
+		}
+
+		/// <summary>All monitors with their work areas (physical pixels), primary first.</summary>
+		public static List<MonitorArea> GetMonitors()
+		{
+			var result = new List<MonitorArea>();
+			EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (hMon, hdc, rc, data) =>
+			{
+				var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+				if (GetMonitorInfo(hMon, ref mi))
+					result.Add(new MonitorArea(hMon, mi.rcWork));
+				return true;
+			}, IntPtr.Zero);
+			return result;
+		}
 
 		[StructLayout(LayoutKind.Sequential)]
 		private struct MONITORINFO

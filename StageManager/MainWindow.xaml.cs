@@ -9,11 +9,13 @@ using StageManager.Native.Window;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -35,6 +37,8 @@ namespace StageManager
 		private Timer _overlapCheckTimer;
 		private Point _mouse = new Point(0, 0);
 		private SceneModel _mouseDownScene;
+		private readonly List<ICollectionView> _stripViews = new List<ICollectionView>();
+		private readonly List<StageWindow> _satellites = new List<StageWindow>();
 
 		// Window-level scenes hold exactly one window. Manual grouping (dragging a
 		// window into another scene) would defeat that, so both are off. Pull also
@@ -91,6 +95,8 @@ namespace StageManager
 
 			AddInitialScenes();
 
+			SetUpStrips();
+
 			var foreground = Win32.GetForegroundWindow();
 			var foregroundScene = SceneManager.FindSceneForWindow(foreground);
 			if (foregroundScene is object)
@@ -113,6 +119,7 @@ namespace StageManager
 			// The current scene stays in the strip (highlighted via SceneModel.IsSelected),
 			// so there is nothing to remove or re-insert here.
 			SyncVisibilityByUpdatedTimeStamp();
+			RefreshStripViews();
 		}
 
 		protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
@@ -144,6 +151,8 @@ namespace StageManager
 						SyncVisibilityByUpdatedTimeStamp();
 						break;
 				}
+
+				RefreshStripViews();
 			});
 		}
 
@@ -233,6 +242,46 @@ namespace StageManager
 			var scenes = Scenes.OrderByDescending(s => s.Updated).ToArray();
 			for (int i = 0; i < scenes.Length; i++)
 				scenes[i].IsVisible = i < MAX_SCENES;
+		}
+
+		// One strip per monitor: the primary monitor uses this window's scenesControl,
+		// each other monitor gets a satellite StageWindow. Each strip shows only the
+		// scenes whose window currently sits on that monitor.
+		private void SetUpStrips()
+		{
+			var primaryMonitor = Win32.GetMonitor(_thisHandle);
+			scenesControl.ItemsSource = MakeMonitorView(primaryMonitor);
+
+			foreach (var mon in Win32.GetMonitors())
+			{
+				if (mon.Handle == primaryMonitor)
+					continue;
+
+				var strip = new StageWindow(MakeMonitorView(mon.Handle), SwitchSceneCommand);
+				_satellites.Add(strip);
+				strip.Show();
+
+				// Pin to the monitor work area (physical px), left edge. Width reuses the
+				// primary strip's DIP width for now; per-monitor DPI scaling is a follow-up.
+				var width = (int)Math.Round(Width);
+				Win32.SetWindowPos(strip.Handle, IntPtr.Zero, mon.Work.Left, mon.Work.Top,
+					width, mon.Work.Bottom - mon.Work.Top,
+					Win32.SetWindowPosFlags.DoNotActivate | Win32.SetWindowPosFlags.DoNotChangeOwnerZOrder);
+			}
+		}
+
+		private ICollectionView MakeMonitorView(IntPtr monitor)
+		{
+			var view = new CollectionViewSource { Source = Scenes }.View;
+			view.Filter = o => o is SceneModel m && m.MonitorHandle == monitor;
+			_stripViews.Add(view);
+			return view;
+		}
+
+		private void RefreshStripViews()
+		{
+			foreach (var view in _stripViews)
+				view.Refresh();
 		}
 
 		public ObservableCollection<SceneModel> Scenes { get; } = new ObservableCollection<SceneModel>();

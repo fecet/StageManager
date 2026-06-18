@@ -49,8 +49,7 @@
             Name="scenesControl"
             HorizontalAlignment="Left"
             VerticalAlignment="Center"
-            Padding="12, 0, 0, 0"
-            ItemsSource="{Binding Scenes}">
+            Padding="12, 0, 0, 0">
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <Border Visibility="{Binding Visibility}"
