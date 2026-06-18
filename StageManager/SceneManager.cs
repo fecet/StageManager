@@ -14,6 +14,7 @@ namespace StageManager
 	public class SceneManager
 	{
 		private readonly Desktop _desktop;
+		private readonly IntPtr _stripHandle;
 		private List<Scene> _scenes;
 		private Scene _current;
 		private bool _suspend = false;
@@ -26,9 +27,10 @@ namespace StageManager
 
 		public WindowsManager WindowsManager { get; }
 
-		public SceneManager(WindowsManager windowsManager)
+		public SceneManager(WindowsManager windowsManager, IntPtr stripHandle)
 		{
 			WindowsManager = windowsManager ?? throw new ArgumentNullException(nameof(windowsManager));
+			_stripHandle = stripHandle;
 			_desktop = new Desktop();
 			_desktop.HideIcons();
 		}
@@ -104,7 +106,7 @@ namespace StageManager
 
 		public Scene FindSceneForWindow(IntPtr handle) => _scenes?.FirstOrDefault(s => s.Windows.Any(w => w.Handle == handle));
 
-		private Scene FindSceneForProcess(string processName) => _scenes.FirstOrDefault(s => string.Equals(s.Key, processName, StringComparison.OrdinalIgnoreCase));
+		private Scene FindSceneByKey(string key) => _scenes.FirstOrDefault(s => string.Equals(s.Key, key, StringComparison.OrdinalIgnoreCase));
 
 		private async void WindowsManager_WindowCreated(IWindow window, bool firstCreate)
 		{
@@ -126,8 +128,8 @@ namespace StageManager
 
 		private async Task SwitchToSceneByNewWindow(IWindow window)
 		{
-			var existentScene = FindSceneForProcess(GetWindowGroupKey(window));
-			var scene = existentScene ?? new Scene(window.ProcessName, window);
+			var existentScene = FindSceneByKey(GetWindowGroupKey(window));
+			var scene = existentScene ?? new Scene(GetWindowGroupKey(window), window);
 
 			if (existentScene is null)
 			{
@@ -195,7 +197,10 @@ namespace StageManager
 				if (scene is object)
 				{
 					foreach (var w in scene.Windows)
+					{
 						WindowStrategy.Show(w);
+						LayoutIntoMainArea(w);
+					}
 				}
 
 				foreach (var o in otherWindows)
@@ -212,6 +217,33 @@ namespace StageManager
 			{
 				_suspend = false;
 			}
+		}
+
+		// Place the scene's window into the "main work area": the monitor work area
+		// minus the strip's width on the left, so the strip stays uncovered on the
+		// left and the window fills everything to its right (macOS Stage Manager look).
+		private void LayoutIntoMainArea(IWindow window)
+		{
+			var area = Win32.GetWorkArea(window.Handle);
+			if (area.Right <= area.Left || area.Bottom <= area.Top)
+				return;
+
+			if (_stripHandle != IntPtr.Zero)
+			{
+				var strip = new Win32.Rect();
+				Win32.GetWindowRect(_stripHandle, ref strip);
+				var stripWidth = strip.Right - strip.Left;
+				if (stripWidth > 0 && stripWidth < (area.Right - area.Left))
+					area.Left += stripWidth;
+			}
+
+			// a maximized window ignores SetWindowPos until it is restored
+			if (window.IsMaximized)
+				Win32.ShowWindow(window.Handle, Win32.SW.SW_RESTORE);
+
+			Win32.SetWindowPos(window.Handle, IntPtr.Zero, area.Left, area.Top,
+				area.Right - area.Left, area.Bottom - area.Top,
+				Win32.SetWindowPosFlags.DoNotActivate | Win32.SetWindowPosFlags.DoNotChangeOwnerZOrder);
 		}
 
 		public Task MoveWindow(Scene sourceScene, IWindow window, Scene targetScene)
@@ -296,6 +328,8 @@ namespace StageManager
 
 		public IEnumerable<IWindow> GetCurrentWindows() => _current?.Windows ?? GetSceneableWindows();
 
-		private string GetWindowGroupKey(IWindow window) => window.ProcessName;
+		// One window per scene (window-level, like macOS "one window at a time"):
+		// the handle is unique, so GroupBy never merges windows.
+		private string GetWindowGroupKey(IWindow window) => window.Handle.ToString();
 	}
 }
