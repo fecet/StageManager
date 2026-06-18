@@ -74,6 +74,7 @@ namespace StageManager.Model
 		private void Scene_SelectedChanged(object? sender, EventArgs e)
 		{
 			Updated = DateTime.UtcNow;
+			RaisePropertyChanged(nameof(IsSelected));
 		}
 
 		public Guid Id { get; set; }
@@ -94,6 +95,8 @@ namespace StageManager.Model
 		}
 
 		public string Title => Scene?.Title ?? "";
+
+		public bool IsSelected => Scene?.IsSelected ?? false;
 
 		public bool IsVisible
 		{

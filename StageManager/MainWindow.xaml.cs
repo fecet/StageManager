@@ -34,7 +34,6 @@ namespace StageManager
 		private double _lastWidth;
 		private Timer _overlapCheckTimer;
 		private Point _mouse = new Point(0, 0);
-		private SceneModel _removedCurrentScene;
 		private SceneModel _mouseDownScene;
 
 		public bool EnableWindowDropToScene = false;
@@ -101,31 +100,15 @@ namespace StageManager
 			for (int i = 0; i < initialScenes.Length; i++)
 			{
 				var model = SceneModel.FromScene(initialScenes[i]);
-				model.IsVisible = i <= MAX_SCENES; // i is zero based, so it should be i+1 but one scene gets selected (and removed from the sidebar) that makes i+0 again
+				model.IsVisible = i < MAX_SCENES; // show the most recent MAX_SCENES; the current scene stays in the strip
 				Scenes.Add(model);
 			}
 		}
 
 		private void SceneManager_CurrentSceneSelectionChanged(object? sender, CurrentSceneSelectionChangedEventArgs args)
 		{
-			var currentModel = args.Current is null ? null : Scenes.FirstOrDefault(m => m.Id == args.Current.Id);
-
-			if (currentModel is object)
-			{
-				var currentIndex = Scenes.IndexOf(currentModel);
-				Scenes.RemoveAt(currentIndex);
-
-				if (_removedCurrentScene is object)
-					Scenes.Insert(currentIndex, _removedCurrentScene);
-			}
-			else
-			{
-				if (_removedCurrentScene is object)
-					Scenes.Add(_removedCurrentScene);
-			}
-
-			_removedCurrentScene = currentModel;
-
+			// The current scene stays in the strip (highlighted via SceneModel.IsSelected),
+			// so there is nothing to remove or re-insert here.
 			SyncVisibilityByUpdatedTimeStamp();
 		}
 
@@ -149,17 +132,12 @@ namespace StageManager
 						SyncVisibilityByUpdatedTimeStamp();
 						break;
 					case ChangeType.Updated:
-						if (AllScenes.FirstOrDefault(s => s.Id == e.Scene.Id) is SceneModel toUpdate)
+						if (Scenes.FirstOrDefault(s => s.Id == e.Scene.Id) is SceneModel toUpdate)
 							toUpdate.UpdateFromScene(e.Scene);
 						break;
 					case ChangeType.Removed:
-						if (AllScenes.FirstOrDefault(s => s.Id == e.Scene.Id) is SceneModel toRemove)
-						{
-							if (toRemove.Equals(_removedCurrentScene))
-								_removedCurrentScene = null;
-							else
-								Scenes.Remove(toRemove);
-						}
+						if (Scenes.FirstOrDefault(s => s.Id == e.Scene.Id) is SceneModel toRemove)
+							Scenes.Remove(toRemove);
 						SyncVisibilityByUpdatedTimeStamp();
 						break;
 				}
@@ -255,8 +233,6 @@ namespace StageManager
 		}
 
 		public ObservableCollection<SceneModel> Scenes { get; } = new ObservableCollection<SceneModel>();
-
-		public IEnumerable<SceneModel> AllScenes => Scenes.Union(new[] { _removedCurrentScene });
 
 		public ICommand SwitchSceneCommand { get; }
 
