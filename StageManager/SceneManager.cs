@@ -186,7 +186,16 @@ namespace StageManager
 			{
 				_suspend = true;
 
-				var otherWindows = GetSceneableWindows().Except(scene?.Windows ?? Array.Empty<IWindow>()).ToArray();
+				// Per-monitor stage: only set aside windows on the same monitor as the
+				// focused scene, so each display behaves as an independent stage.
+				// scene == null means "show the desktop": fall back to all monitors.
+				var sceneMonitor = scene?.Windows.FirstOrDefault() is IWindow front
+					? Win32.GetMonitor(front.Handle)
+					: IntPtr.Zero;
+				var otherWindows = GetSceneableWindows()
+					.Except(scene?.Windows ?? Array.Empty<IWindow>())
+					.Where(o => sceneMonitor == IntPtr.Zero || Win32.GetMonitor(o.Handle) == sceneMonitor)
+					.ToArray();
 
 				var prior = _current;
 				_current = scene;

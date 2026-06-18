@@ -22,6 +22,9 @@ namespace StageManager.Native.PInvoke
 		[DllImport("user32.dll")]
 		private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
+		/// <summary>Handle of the monitor the window mostly sits on.</summary>
+		public static IntPtr GetMonitor(IntPtr hwnd) => MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+
 		/// <summary>Work area (monitor minus taskbar) of the monitor the window sits on.</summary>
 		public static Rect GetWorkArea(IntPtr hwnd)
 		{
