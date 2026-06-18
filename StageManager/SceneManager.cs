@@ -233,8 +233,11 @@ namespace StageManager
 				var strip = new Win32.Rect();
 				Win32.GetWindowRect(_stripHandle, ref strip);
 				var stripWidth = strip.Right - strip.Left;
-				if (stripWidth > 0 && stripWidth < (area.Right - area.Left))
-					area.Left += stripWidth;
+				// only reserve the strip's slice when it actually sits on this window's
+				// monitor; windows on other monitors fill their own work area in full
+				var stripOnThisMonitor = strip.Left >= area.Left && strip.Left < area.Right;
+				if (stripOnThisMonitor && stripWidth > 0 && stripWidth < (area.Right - area.Left))
+					area.Left = Math.Max(area.Left, strip.Right);
 			}
 
 			// a maximized window ignores SetWindowPos until it is restored
