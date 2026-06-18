@@ -17,6 +17,7 @@ namespace StageManager
 			Scenes = scenes;
 			SwitchSceneCommand = switchSceneCommand;
 			InitializeComponent();
+			DataContext = this;
 		}
 
 		public ICollectionView Scenes { get; }
