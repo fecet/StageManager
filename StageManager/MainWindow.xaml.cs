@@ -36,8 +36,11 @@ namespace StageManager
 		private Point _mouse = new Point(0, 0);
 		private SceneModel _mouseDownScene;
 
+		// Window-level scenes hold exactly one window. Manual grouping (dragging a
+		// window into another scene) would defeat that, so both are off. Pull also
+		// misfired on ordinary main-area clicks through a stale _mouseDownScene.
 		public bool EnableWindowDropToScene = false;
-		public bool EnableWindowPullToScene = true;
+		public bool EnableWindowPullToScene = false;
 
 		public MainWindow()
 		{
