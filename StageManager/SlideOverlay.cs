@@ -85,28 +85,38 @@ namespace StageManager
 					Apply(thumb, to);
 
 					onDone?.Invoke(); // reveal the real window at the stage (already painted off-screen)
-					// the real window is pre-painted and only moved on-screen, so drop the
-					// thumbnail after a single frame instead of lingering ~70ms
-					var cleanup = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(16) };
-					cleanup.Tick += (cs, ce) =>
+
+					// Cross-fade the thumbnail out over a few frames instead of a hard swap:
+					// the identical real window is right beneath it, so the hand-off is seamless.
+					var a = 255;
+					var fade = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(16) };
+					fade.Tick += (cs, ce) =>
 					{
-						cleanup.Stop();
-						NativeMethods.DwmUnregisterThumbnail(thumb);
+						a -= 48;
+						if (a <= 0)
+						{
+							fade.Stop();
+							NativeMethods.DwmUnregisterThumbnail(thumb);
+						}
+						else
+						{
+							Apply(thumb, to, (byte)a);
+						}
 					};
-					cleanup.Start();
+					fade.Start();
 				}
 			};
 			Apply(thumb, from);
 			timer.Start();
 		}
 
-		private void Apply(IntPtr thumb, Win32.Rect screenRect)
+		private void Apply(IntPtr thumb, Win32.Rect screenRect, byte opacity = 255)
 		{
 			var props = new DWM_THUMBNAIL_PROPERTIES
 			{
 				fVisible = true,
 				dwFlags = (int)(DWM_TNP.DWM_TNP_VISIBLE | DWM_TNP.DWM_TNP_OPACITY | DWM_TNP.DWM_TNP_RECTDESTINATION | DWM_TNP.DWM_TNP_SOURCECLIENTAREAONLY),
-				opacity = 255,
+				opacity = opacity,
 				// mirror the WHOLE window (frame + client), so the slide matches the real
 				// window exactly on reveal — no border "popping in", no client rescale
 				fSourceClientAreaOnly = false,
