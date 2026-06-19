@@ -19,6 +19,7 @@ namespace StageManager
 	{
 		private int _originX;
 		private int _originY;
+		private readonly CoverWindow _cover = new CoverWindow();
 
 		public SlideOverlay()
 		{
@@ -84,14 +85,31 @@ namespace StageManager
 					timer.Stop();
 					Apply(thumb, to);
 
-					onDone?.Invoke(); // reveal the real window at the stage
-					var cleanup = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(70) };
-					cleanup.Tick += (cs, ce) =>
+					// Mask the reveal repaint (the white restore/resize frame): snapshot the
+					// stage (currently the slid thumbnail) and cover it with that static image.
+					var snap = CaptureRect(to);
+					_cover.ShowAt(snap, to);
+
+					// Let the cover paint one frame before dropping the live thumbnail and
+					// revealing the real window under it; then remove the cover once the
+					// window has had time to repaint.
+					var settle = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(30) };
+					settle.Tick += (cs, ce) =>
 					{
-						cleanup.Stop();
+						settle.Stop();
 						NativeMethods.DwmUnregisterThumbnail(thumb);
+						onDone?.Invoke();
+
+						var hold = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
+						hold.Tick += (hs, he) =>
+						{
+							hold.Stop();
+							_cover.HideCover();
+							snap.Dispose();
+						};
+						hold.Start();
 					};
-					cleanup.Start();
+					settle.Start();
 				}
 			};
 			Apply(thumb, from);
@@ -115,6 +133,16 @@ namespace StageManager
 				}
 			};
 			NativeMethods.DwmUpdateThumbnailProperties(thumb, ref props);
+		}
+
+		private static System.Drawing.Bitmap CaptureRect(Win32.Rect r)
+		{
+			int w = Math.Max(1, r.Right - r.Left);
+			int h = Math.Max(1, r.Bottom - r.Top);
+			var bmp = new System.Drawing.Bitmap(w, h);
+			using (var g = System.Drawing.Graphics.FromImage(bmp))
+				g.CopyFromScreen(r.Left, r.Top, 0, 0, new System.Drawing.Size(w, h));
+			return bmp;
 		}
 
 		private static Win32.Rect Lerp(Win32.Rect a, Win32.Rect b, double k) => new Win32.Rect

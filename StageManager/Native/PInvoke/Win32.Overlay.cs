@@ -18,6 +18,9 @@ namespace StageManager.Native.PInvoke
 		[DllImport("user32.dll")]
 		public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
+		[DllImport("gdi32.dll")]
+		public static extern bool DeleteObject(IntPtr hObject);
+
 		[DllImport("dwmapi.dll")]
 		public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
