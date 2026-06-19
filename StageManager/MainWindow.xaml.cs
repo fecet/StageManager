@@ -301,10 +301,14 @@ namespace StageManager
 					return;
 				}
 
-				// Start small, parked in the strip area just left of the stage.
+				// Start as a scaled-down copy of the stage rect (SAME aspect ratio), parked
+				// in the strip column, so the window keeps its shape while it grows in.
 				var stripW = (int)Math.Round(Width);
-				var fw = Math.Max(80, stripW - 16);
-				var fh = (int)(fw * 0.6);
+				var sw = stageRect.Right - stageRect.Left;
+				var sh = stageRect.Bottom - stageRect.Top;
+				var scale = Math.Min(0.5, (double)Math.Max(40, stripW - 24) / Math.Max(1, sw));
+				var fw = Math.Max(40, (int)(sw * scale));
+				var fh = Math.Max(30, (int)(sh * scale));
 				var cx = stageRect.Left - stripW / 2;
 				var cy = (stageRect.Top + stageRect.Bottom) / 2;
 				var from = new Win32.Rect { Left = cx - fw / 2, Top = cy - fh / 2, Right = cx + fw / 2, Bottom = cy + fh / 2 };
