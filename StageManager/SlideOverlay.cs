@@ -82,17 +82,25 @@ namespace StageManager
 				if (t >= 1.0)
 				{
 					timer.Stop();
-					onDone?.Invoke(); // show the real window at the stage (under the topmost thumbnail)
+					Apply(thumb, to);
 
-					// Keep the thumbnail a few frames so the revealed window can paint
-					// first, then drop it — otherwise there is a blank frame at the seam.
-					var cleanup = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(70) };
-					cleanup.Tick += (cs, ce) =>
+					// DIAG: hold each seam step ~250ms and snapshot the screen so we can
+					// see exactly which step shows the flash. TEMPORARY.
+					var step = 0;
+					var seq = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+					seq.Tick += (cs, ce) =>
 					{
-						cleanup.Stop();
-						NativeMethods.DwmUnregisterThumbnail(thumb);
+						step++;
+						switch (step)
+						{
+							case 1: DiagCapture("1_thumb_at_stage"); break;
+							case 2: onDone?.Invoke(); break;
+							case 3: DiagCapture("2_revealed"); break;
+							case 4: NativeMethods.DwmUnregisterThumbnail(thumb); break;
+							case 5: DiagCapture("3_dropped"); seq.Stop(); break;
+						}
 					};
-					cleanup.Start();
+					seq.Start();
 				}
 			};
 			Apply(thumb, from);
@@ -116,6 +124,25 @@ namespace StageManager
 				}
 			};
 			NativeMethods.DwmUpdateThumbnailProperties(thumb, ref props);
+		}
+
+		// DIAG: snapshot the whole virtual screen to C:\Relay\diag. TEMPORARY.
+		private static void DiagCapture(string name)
+		{
+			System.Threading.Tasks.Task.Run(() =>
+			{
+				try
+				{
+					var dir = @"C:\Relay\diag";
+					System.IO.Directory.CreateDirectory(dir);
+					var vs = System.Windows.Forms.SystemInformation.VirtualScreen;
+					using var bmp = new System.Drawing.Bitmap(vs.Width, vs.Height);
+					using (var g = System.Drawing.Graphics.FromImage(bmp))
+						g.CopyFromScreen(vs.X, vs.Y, 0, 0, vs.Size);
+					bmp.Save(System.IO.Path.Combine(dir, name + ".png"), System.Drawing.Imaging.ImageFormat.Png);
+				}
+				catch { }
+			});
 		}
 
 		private static Win32.Rect Lerp(Win32.Rect a, Win32.Rect b, double k) => new Win32.Rect
