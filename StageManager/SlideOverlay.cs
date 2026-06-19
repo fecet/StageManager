@@ -84,23 +84,16 @@ namespace StageManager
 					timer.Stop();
 					Apply(thumb, to);
 
-					// DIAG: hold each seam step ~250ms and snapshot the screen so we can
-					// see exactly which step shows the flash. TEMPORARY.
-					var step = 0;
-					var seq = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-					seq.Tick += (cs, ce) =>
+					DiagBurst(to); // DIAG: high-rate burst over the seam. TEMPORARY.
+
+					onDone?.Invoke(); // reveal the real window at the stage
+					var cleanup = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(70) };
+					cleanup.Tick += (cs, ce) =>
 					{
-						step++;
-						switch (step)
-						{
-							case 1: DiagCapture("1_thumb_at_stage"); break;
-							case 2: onDone?.Invoke(); break;
-							case 3: DiagCapture("2_revealed"); break;
-							case 4: NativeMethods.DwmUnregisterThumbnail(thumb); break;
-							case 5: DiagCapture("3_dropped"); seq.Stop(); break;
-						}
+						cleanup.Stop();
+						NativeMethods.DwmUnregisterThumbnail(thumb);
 					};
-					seq.Start();
+					cleanup.Start();
 				}
 			};
 			Apply(thumb, from);
@@ -126,20 +119,31 @@ namespace StageManager
 			NativeMethods.DwmUpdateThumbnailProperties(thumb, ref props);
 		}
 
-		// DIAG: snapshot the whole virtual screen to C:\Relay\diag. TEMPORARY.
-		private static void DiagCapture(string name)
+		// DIAG: back-to-back burst of the stage region over the seam. TEMPORARY.
+		private static void DiagBurst(Win32.Rect r)
 		{
+			var rect = r;
 			System.Threading.Tasks.Task.Run(() =>
 			{
 				try
 				{
+					int w = rect.Right - rect.Left, h = rect.Bottom - rect.Top;
+					if (w <= 0 || h <= 0) return;
+					var frames = new System.Collections.Generic.List<System.Drawing.Bitmap>();
+					for (int i = 0; i < 40; i++)
+					{
+						var bmp = new System.Drawing.Bitmap(w, h);
+						using (var g = System.Drawing.Graphics.FromImage(bmp))
+							g.CopyFromScreen(rect.Left, rect.Top, 0, 0, new System.Drawing.Size(w, h));
+						frames.Add(bmp);
+					}
 					var dir = @"C:\Relay\diag";
 					System.IO.Directory.CreateDirectory(dir);
-					var vs = System.Windows.Forms.SystemInformation.VirtualScreen;
-					using var bmp = new System.Drawing.Bitmap(vs.Width, vs.Height);
-					using (var g = System.Drawing.Graphics.FromImage(bmp))
-						g.CopyFromScreen(vs.X, vs.Y, 0, 0, vs.Size);
-					bmp.Save(System.IO.Path.Combine(dir, name + ".png"), System.Drawing.Imaging.ImageFormat.Png);
+					for (int i = 0; i < frames.Count; i++)
+					{
+						frames[i].Save(System.IO.Path.Combine(dir, "b" + i.ToString("00") + ".jpg"), System.Drawing.Imaging.ImageFormat.Jpeg);
+						frames[i].Dispose();
+					}
 				}
 				catch { }
 			});
