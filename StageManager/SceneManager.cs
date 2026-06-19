@@ -23,6 +23,10 @@ namespace StageManager
 		public event EventHandler<SceneChangedEventArgs> SceneChanged;
 		public event EventHandler<CurrentSceneSelectionChangedEventArgs> CurrentSceneSelectionChanged;
 
+		// When a handler is attached, the focused window is slid into its stage rect
+		// by the UI (which calls RevealInStage on completion) instead of snapping.
+		public event Action<IWindow, Win32.Rect> FocusAnimating;
+
 		private IWindowStrategy WindowStrategy { get; } = new NormalizeAndMinimizeWindowStrategy(); // new WindowNormalizeStrategy/OpacityWindowStrategy/ShowAndHideWindowStrategy
 
 		public WindowsManager WindowsManager { get; }
@@ -205,10 +209,13 @@ namespace StageManager
 
 				if (scene is object)
 				{
+					var animate = FocusAnimating;
 					foreach (var w in scene.Windows)
 					{
-						WindowStrategy.Show(w);
-						LayoutIntoMainArea(w);
+						if (animate != null)
+							animate(w, ComputeStageRect(w)); // UI slides it in, then calls RevealInStage
+						else
+							RevealInStage(w);
 					}
 				}
 
@@ -228,14 +235,14 @@ namespace StageManager
 			}
 		}
 
-		// Place the scene's window into the "main work area": the monitor work area
-		// minus the strip's width on the left, so the strip stays uncovered on the
-		// left and the window fills everything to its right (macOS Stage Manager look).
-		private void LayoutIntoMainArea(IWindow window)
+		// The "main work area" / stage: the window's monitor work area minus the
+		// strip's width on the left, so the strip stays uncovered and the window
+		// fills everything to its right (macOS Stage Manager look).
+		private Win32.Rect ComputeStageRect(IWindow window)
 		{
 			var area = Win32.GetWorkArea(window.Handle);
 			if (area.Right <= area.Left || area.Bottom <= area.Top)
-				return;
+				return area;
 
 			if (_stripHandle != IntPtr.Zero)
 			{
@@ -249,6 +256,15 @@ namespace StageManager
 					area.Left = Math.Max(area.Left, strip.Right);
 			}
 
+			return area;
+		}
+
+		private void PlaceInStage(IWindow window)
+		{
+			var area = ComputeStageRect(window);
+			if (area.Right <= area.Left || area.Bottom <= area.Top)
+				return;
+
 			// a maximized window ignores SetWindowPos until it is restored
 			if (window.IsMaximized)
 				Win32.ShowWindow(window.Handle, Win32.SW.SW_RESTORE);
@@ -256,6 +272,14 @@ namespace StageManager
 			Win32.SetWindowPos(window.Handle, IntPtr.Zero, area.Left, area.Top,
 				area.Right - area.Left, area.Bottom - area.Top,
 				Win32.SetWindowPosFlags.DoNotActivate | Win32.SetWindowPosFlags.DoNotChangeOwnerZOrder);
+		}
+
+		// Show the window and snap it into its stage rect (the non-animated path, and
+		// what the UI calls once the slide-in animation finishes).
+		public void RevealInStage(IWindow window)
+		{
+			WindowStrategy.Show(window);
+			PlaceInStage(window);
 		}
 
 		public Task MoveWindow(Scene sourceScene, IWindow window, Scene targetScene)

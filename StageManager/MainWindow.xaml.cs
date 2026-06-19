@@ -39,6 +39,7 @@ namespace StageManager
 		private SceneModel _mouseDownScene;
 		private readonly List<ICollectionView> _stripViews = new List<ICollectionView>();
 		private readonly List<StageWindow> _satellites = new List<StageWindow>();
+		private SlideOverlay _slideOverlay;
 
 		// Window-level scenes hold exactly one window. Manual grouping (dragging a
 		// window into another scene) would defeat that, so both are off. Pull also
@@ -92,6 +93,9 @@ namespace StageManager
 
 			SceneManager.SceneChanged += SceneManager_SceneChanged;
 			SceneManager.CurrentSceneSelectionChanged += SceneManager_CurrentSceneSelectionChanged;
+
+			_slideOverlay = new SlideOverlay();
+			SceneManager.FocusAnimating += OnFocusAnimating;
 
 			AddInitialScenes();
 
@@ -282,6 +286,32 @@ namespace StageManager
 		{
 			foreach (var view in _stripViews)
 				view.Refresh();
+		}
+
+		// Slide the focused window's thumbnail from its strip slot into the stage,
+		// then let SceneManager show + place the real window. Raised by SceneManager
+		// (possibly off the UI thread), so marshal onto the dispatcher.
+		private void OnFocusAnimating(IWindow window, Win32.Rect stageRect)
+		{
+			Dispatcher.Invoke(() =>
+			{
+				if (_slideOverlay == null || stageRect.Right <= stageRect.Left)
+				{
+					SceneManager.RevealInStage(window);
+					return;
+				}
+
+				// Start small, parked in the strip area just left of the stage.
+				var stripW = (int)Math.Round(Width);
+				var fw = Math.Max(80, stripW - 16);
+				var fh = (int)(fw * 0.6);
+				var cx = stageRect.Left - stripW / 2;
+				var cy = (stageRect.Top + stageRect.Bottom) / 2;
+				var from = new Win32.Rect { Left = cx - fw / 2, Top = cy - fh / 2, Right = cx + fw / 2, Bottom = cy + fh / 2 };
+
+				_slideOverlay.Slide(window.Handle, from, stageRect, TimeSpan.FromMilliseconds(280),
+					() => SceneManager.RevealInStage(window));
+			});
 		}
 
 		public ObservableCollection<SceneModel> Scenes { get; } = new ObservableCollection<SceneModel>();
