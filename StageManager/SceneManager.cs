@@ -15,6 +15,7 @@ namespace StageManager
 	{
 		private readonly Desktop _desktop;
 		private readonly IntPtr _stripHandle;
+		private readonly Dictionary<IntPtr, Win32.Rect> _saved = new Dictionary<IntPtr, Win32.Rect>();
 		private List<Scene> _scenes;
 		private Scene _current;
 		private bool _suspend = false;
@@ -56,10 +57,13 @@ namespace StageManager
 		{
 			WindowsManager.Stop();
 
-			foreach (var scene in _scenes)
+			// Restore each managed window to the rect it had before we moved it.
+			foreach (var kv in _saved)
 			{
-				foreach (var w in scene.Windows)
-					WindowStrategy.Show(w);
+				Win32.ShowWindow(kv.Key, Win32.SW.SW_SHOWNOACTIVATE);
+				var r = kv.Value;
+				Win32.SetWindowPos(kv.Key, IntPtr.Zero, r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top,
+					Win32.SetWindowPosFlags.DoNotActivate | Win32.SetWindowPosFlags.DoNotChangeOwnerZOrder);
 			}
 
 			_desktop.ShowIcons();
@@ -88,6 +92,8 @@ namespace StageManager
 
 		private void WindowsManager_WindowDestroyed(IWindow window)
 		{
+			_saved.Remove(window.Handle);
+
 			var scene = FindSceneForWindow(window);
 
 			if (scene is not null)
@@ -220,7 +226,7 @@ namespace StageManager
 				}
 
 				foreach (var o in otherWindows)
-					WindowStrategy.Hide(o);
+					SetAside(o);
 
 				CurrentSceneSelectionChanged?.Invoke(this, new CurrentSceneSelectionChangedEventArgs(prior, _current));
 
@@ -274,11 +280,50 @@ namespace StageManager
 				Win32.SetWindowPosFlags.DoNotActivate | Win32.SetWindowPosFlags.DoNotChangeOwnerZOrder);
 		}
 
-		// Show the window and snap it into its stage rect (the non-animated path, and
-		// what the UI calls once the slide-in animation finishes).
+		// Remember a window's original rect the first time we touch it (while it is
+		// still in a normal state), so Stop() can put it back on quit.
+		private void EnsureSaved(IWindow window)
+		{
+			if (_saved.ContainsKey(window.Handle) || window.IsMinimized || window.IsMaximized)
+				return;
+
+			var r = new Win32.Rect();
+			Win32.GetWindowRect(window.Handle, ref r);
+			if (r.Right > r.Left && r.Bottom > r.Top)
+				_saved[window.Handle] = r;
+		}
+
+		// Set aside: keep the window shown but moved off-screen at its stage size, so its
+		// resize/repaint happens off-screen. Revealing it is then a move only (no WM_SIZE,
+		// no white flash), and its live thumbnail mirrors real painted content.
+		private void SetAside(IWindow window)
+		{
+			EnsureSaved(window);
+
+			var area = ComputeStageRect(window);
+			if (area.Right <= area.Left || area.Bottom <= area.Top)
+			{
+				WindowStrategy.Hide(window);
+				return;
+			}
+
+			if (window.IsMaximized || window.IsMinimized)
+				Win32.ShowWindow(window.Handle, Win32.SW.SW_SHOWNOACTIVATE);
+
+			var w = area.Right - area.Left;
+			var h = area.Bottom - area.Top;
+			var vx = Win32.GetSystemMetrics(Win32.SM_XVIRTUALSCREEN);
+			Win32.SetWindowPos(window.Handle, IntPtr.Zero, vx - w - 50, area.Top, w, h,
+				Win32.SetWindowPosFlags.DoNotActivate | Win32.SetWindowPosFlags.DoNotChangeOwnerZOrder);
+		}
+
+		// Move the window on-screen into its stage rect (the non-animated path, and what
+		// the UI calls once the slide finishes). If it was set aside it is already
+		// stage-sized off-screen, so this is a move only (no resize, no white repaint).
 		public void RevealInStage(IWindow window)
 		{
-			Win32.DisableTransitions(window.Handle); // no restore fly-in when we show it
+			EnsureSaved(window);
+			Win32.DisableTransitions(window.Handle);
 			WindowStrategy.Show(window);
 			PlaceInStage(window);
 		}
