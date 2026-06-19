@@ -105,7 +105,9 @@ namespace StageManager
 				fVisible = true,
 				dwFlags = (int)(DWM_TNP.DWM_TNP_VISIBLE | DWM_TNP.DWM_TNP_OPACITY | DWM_TNP.DWM_TNP_RECTDESTINATION | DWM_TNP.DWM_TNP_SOURCECLIENTAREAONLY),
 				opacity = 255,
-				fSourceClientAreaOnly = true,
+				// mirror the WHOLE window (frame + client), so the slide matches the real
+				// window exactly on reveal — no border "popping in", no client rescale
+				fSourceClientAreaOnly = false,
 				rcDestination = new RECT
 				{
 					left = screenRect.Left - _originX,
