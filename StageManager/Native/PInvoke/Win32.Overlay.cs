@@ -17,5 +17,15 @@ namespace StageManager.Native.PInvoke
 
 		[DllImport("user32.dll")]
 		public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
+
+		[DllImport("dwmapi.dll")]
+		public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+		/// <summary>Suppress the window's own show/restore/move transition animations.</summary>
+		public static void DisableTransitions(IntPtr hwnd)
+		{
+			int enabled = 1;
+			DwmSetWindowAttribute(hwnd, (int)DwmWindowAttribute.DWMWA_TRANSITIONS_FORCEDISABLED, ref enabled, sizeof(int));
+		}
 	}
 }

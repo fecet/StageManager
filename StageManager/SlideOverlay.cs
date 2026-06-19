@@ -81,10 +81,10 @@ namespace StageManager
 				if (t >= 1.0)
 				{
 					timer.Stop();
-					NativeMethods.DwmUnregisterThumbnail(thumb);
+					onDone?.Invoke(); // show the real window at the stage first (under the topmost thumbnail)
+					NativeMethods.DwmUnregisterThumbnail(thumb); // then drop the thumbnail -> real window shows beneath
 					if (--_active <= 0)
 						Hide();
-					onDone?.Invoke();
 				}
 			};
 			Apply(thumb, from);

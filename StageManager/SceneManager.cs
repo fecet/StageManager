@@ -278,6 +278,7 @@ namespace StageManager
 		// what the UI calls once the slide-in animation finishes).
 		public void RevealInStage(IWindow window)
 		{
+			Win32.DisableTransitions(window.Handle); // no restore fly-in when we show it
 			WindowStrategy.Show(window);
 			PlaceInStage(window);
 		}
