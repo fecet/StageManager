@@ -19,7 +19,6 @@ namespace StageManager
 	{
 		private int _originX;
 		private int _originY;
-		private int _active;
 
 		public SlideOverlay()
 		{
@@ -60,6 +59,9 @@ namespace StageManager
 		/// rect to another (physical px), then invoke <paramref name="onDone"/>.</summary>
 		public void Slide(IntPtr sourceWindow, Win32.Rect from, Win32.Rect to, TimeSpan duration, Action onDone)
 		{
+			// Show once and keep the overlay up: it is transparent and click-through,
+			// so leaving it shown avoids the flicker of show/hide-ing a topmost
+			// layered window on every switch.
 			if (!IsVisible)
 				Show();
 
@@ -69,7 +71,6 @@ namespace StageManager
 				return;
 			}
 
-			_active++;
 			var clock = Stopwatch.StartNew();
 			var timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(8) };
 			timer.Tick += (s, e) =>
@@ -81,10 +82,17 @@ namespace StageManager
 				if (t >= 1.0)
 				{
 					timer.Stop();
-					onDone?.Invoke(); // show the real window at the stage first (under the topmost thumbnail)
-					NativeMethods.DwmUnregisterThumbnail(thumb); // then drop the thumbnail -> real window shows beneath
-					if (--_active <= 0)
-						Hide();
+					onDone?.Invoke(); // show the real window at the stage (under the topmost thumbnail)
+
+					// Keep the thumbnail a few frames so the revealed window can paint
+					// first, then drop it — otherwise there is a blank frame at the seam.
+					var cleanup = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(70) };
+					cleanup.Tick += (cs, ce) =>
+					{
+						cleanup.Stop();
+						NativeMethods.DwmUnregisterThumbnail(thumb);
+					};
+					cleanup.Start();
 				}
 			};
 			Apply(thumb, from);
