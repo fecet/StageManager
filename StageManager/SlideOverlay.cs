@@ -84,8 +84,6 @@ namespace StageManager
 					timer.Stop();
 					Apply(thumb, to);
 
-					DiagBurst(to); // DIAG: high-rate burst over the seam. TEMPORARY.
-
 					onDone?.Invoke(); // reveal the real window at the stage
 					var cleanup = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(70) };
 					cleanup.Tick += (cs, ce) =>
@@ -117,36 +115,6 @@ namespace StageManager
 				}
 			};
 			NativeMethods.DwmUpdateThumbnailProperties(thumb, ref props);
-		}
-
-		// DIAG: back-to-back burst of the stage region over the seam. TEMPORARY.
-		private static void DiagBurst(Win32.Rect r)
-		{
-			var rect = r;
-			System.Threading.Tasks.Task.Run(() =>
-			{
-				try
-				{
-					int w = rect.Right - rect.Left, h = rect.Bottom - rect.Top;
-					if (w <= 0 || h <= 0) return;
-					var frames = new System.Collections.Generic.List<System.Drawing.Bitmap>();
-					for (int i = 0; i < 40; i++)
-					{
-						var bmp = new System.Drawing.Bitmap(w, h);
-						using (var g = System.Drawing.Graphics.FromImage(bmp))
-							g.CopyFromScreen(rect.Left, rect.Top, 0, 0, new System.Drawing.Size(w, h));
-						frames.Add(bmp);
-					}
-					var dir = @"C:\Relay\diag";
-					System.IO.Directory.CreateDirectory(dir);
-					for (int i = 0; i < frames.Count; i++)
-					{
-						frames[i].Save(System.IO.Path.Combine(dir, "b" + i.ToString("00") + ".jpg"), System.Drawing.Imaging.ImageFormat.Jpeg);
-						frames[i].Dispose();
-					}
-				}
-				catch { }
-			});
 		}
 
 		private static Win32.Rect Lerp(Win32.Rect a, Win32.Rect b, double k) => new Win32.Rect
