@@ -301,6 +301,18 @@ namespace StageManager
 					return;
 				}
 
+				var handle = window.Handle;
+				var sw = stageRect.Right - stageRect.Left;
+				var sh = stageRect.Bottom - stageRect.Top;
+
+				// Restore the window off-screen at the FINAL size, so its resize repaint
+				// (the white flash) happens off-screen. The live thumbnail then mirrors the
+				// painted content, and the reveal below is a move only (no resize/repaint).
+				Win32.DisableTransitions(handle);
+				var vx = Win32.GetSystemMetrics(Win32.SM_XVIRTUALSCREEN);
+				var off = new Win32.Rect { Left = vx - sw - 50, Top = stageRect.Top, Right = vx - 50, Bottom = stageRect.Top + sh };
+				Win32.RestoreToRect(handle, off);
+
 				// Start small, parked in the strip area just left of the stage.
 				var stripW = (int)Math.Round(Width);
 				var fw = Math.Max(80, stripW - 16);
@@ -309,8 +321,10 @@ namespace StageManager
 				var cy = (stageRect.Top + stageRect.Bottom) / 2;
 				var from = new Win32.Rect { Left = cx - fw / 2, Top = cy - fh / 2, Right = cx + fw / 2, Bottom = cy + fh / 2 };
 
-				_slideOverlay.Slide(window.Handle, from, stageRect, TimeSpan.FromMilliseconds(280),
-					() => SceneManager.RevealInStage(window));
+				_slideOverlay.Slide(handle, from, stageRect, TimeSpan.FromMilliseconds(280), () =>
+					// move on-screen at the same size: no WM_SIZE, so no white repaint
+					Win32.SetWindowPos(handle, IntPtr.Zero, stageRect.Left, stageRect.Top, sw, sh,
+						Win32.SetWindowPosFlags.DoNotActivate | Win32.SetWindowPosFlags.DoNotChangeOwnerZOrder));
 			});
 		}
 
