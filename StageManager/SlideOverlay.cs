@@ -84,8 +84,10 @@ namespace StageManager
 					timer.Stop();
 					Apply(thumb, to);
 
-					onDone?.Invoke(); // reveal the real window at the stage
-					var cleanup = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(70) };
+					onDone?.Invoke(); // reveal the real window at the stage (already painted off-screen)
+					// the real window is pre-painted and only moved on-screen, so drop the
+					// thumbnail after a single frame instead of lingering ~70ms
+					var cleanup = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(16) };
 					cleanup.Tick += (cs, ce) =>
 					{
 						cleanup.Stop();
