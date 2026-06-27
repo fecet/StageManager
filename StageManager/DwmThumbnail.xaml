@@ -8,14 +8,9 @@
     mc:Ignorable="d"
     d:DesignHeight="450"
     d:DesignWidth="800">
-    <Grid>
-        <Border>
-            <Border.Effect>
-                <DropShadowEffect
-                    BlurRadius="20" />
-            </Border.Effect>
-            <Rectangle
-                Fill="White" />
-        </Border>
-    </Grid>
+    <!-- Near-zero-alpha backing (not fully Transparent): a sub-255 DWM thumbnail still
+         blends with the screen behind for see-through, but alpha=1 keeps the pixels from
+         becoming click-through on the layered window, so clicks on the preview reach the
+         tile. alpha=0 would pass the click straight through to whatever is underneath. -->
+    <Grid Background="#01000000" />
 </UserControl>

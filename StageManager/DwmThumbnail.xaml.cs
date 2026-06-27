@@ -32,6 +32,19 @@ namespace StageManager
 			set { SetValue(PreviewHandleProperty, value); }
 		}
 
+		// 0..255; passed straight to DWM_THUMBNAIL_PROPERTIES.opacity so the live preview
+		// can be made translucent (the desktop behind it shows through).
+		public static readonly DependencyProperty ThumbnailOpacityProperty = DependencyProperty.Register(nameof(ThumbnailOpacity),
+			   typeof(byte),
+			   typeof(DwmThumbnail),
+			   new PropertyMetadata((byte)255));
+
+		public byte ThumbnailOpacity
+		{
+			get { return (byte)GetValue(ThumbnailOpacityProperty); }
+			set { SetValue(ThumbnailOpacityProperty, value); }
+		}
+
 		private Point GetDpiScaleFactor()
 		{
 			if (_dpiScaleFactor is null)
@@ -55,11 +68,19 @@ namespace StageManager
 
 			if (nameof(PreviewHandle).Equals(e.Property.Name))
 			{
-				if ((IntPtr)e.OldValue == IntPtr.Zero && (IntPtr)e.NewValue != IntPtr.Zero)
-					StartCapture();
+				// Drop any thumbnail bound to the previous handle; UpdateThumbnailProperties
+				// re-registers against the new handle once the control is connected.
+				if (_dwmThumbnail != IntPtr.Zero)
+				{
+					NativeMethods.DwmUnregisterThumbnail(_dwmThumbnail);
+					_dwmThumbnail = IntPtr.Zero;
+				}
 
 				UpdateThumbnailProperties();
 			}
+
+			if (nameof(ThumbnailOpacity).Equals(e.Property.Name))
+				UpdateThumbnailProperties();
 
 			if (nameof(IsVisible).Equals(e.Property.Name) && !(bool)e.NewValue && _dwmThumbnail != IntPtr.Zero)
 			{
@@ -75,29 +96,51 @@ namespace StageManager
 
 		public static Rect BoundsRelativeTo(FrameworkElement element, Visual relativeTo)
 		{
+			// Use the element's own render bounds, not its layout slot (which is in the
+			// PARENT's coordinates): nested inside the tile template, the slot carries the
+			// parent's offset and double-counts it through TransformToVisual, drifting the
+			// thumbnail off the clickable tile.
 			return element.TransformToVisual(relativeTo)
-						  .TransformBounds(System.Windows.Controls.Primitives.LayoutInformation.GetLayoutSlot(element));
+						  .TransformBounds(new Rect(element.RenderSize));
 		}
 
-		private void StartCapture()
+		// Register only when the control is hosted in a window with a real HWND. Inside
+		// an ItemsControl that is not guaranteed at the moment PreviewHandle is first set.
+		private bool TryRegister()
 		{
-			var windowHandle = new System.Windows.Interop.WindowInteropHelper(FindWindow()).Handle;
+			if (_dwmThumbnail != IntPtr.Zero)
+				return true;
 
-			var hr = NativeMethods.DwmRegisterThumbnail(windowHandle, PreviewHandle, out _dwmThumbnail);
-			if (hr != 0)
-				return;
+			var window = FindWindow();
+			if (window is null)
+				return false;
+
+			var windowHandle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+			if (windowHandle == IntPtr.Zero)
+				return false;
+
+			return NativeMethods.DwmRegisterThumbnail(windowHandle, PreviewHandle, out _dwmThumbnail) == 0;
 		}
 
 		private Window FindWindow() => _window ??= Window.GetWindow(this);
 
 		private void UpdateThumbnailProperties()
 		{
-			if (_dwmThumbnail == IntPtr.Zero)
+			var window = FindWindow();
+
+			// This control is reused inside an ItemsControl, so LayoutUpdated can fire
+			// while it is detached from (or not yet attached to) the owning window's
+			// visual tree. TransformToVisual across separate trees throws, so place the
+			// thumbnail only once the control is connected under its window.
+			if (window is null || PresentationSource.FromVisual(this) is null || !window.IsAncestorOf(this))
+				return;
+
+			if (PreviewHandle == IntPtr.Zero || !TryRegister())
 				return;
 
 			var dpi = GetDpiScaleFactor();
 
-			var previewBounds = BoundsRelativeTo(this, FindWindow());
+			var previewBounds = BoundsRelativeTo(this, window);
 
 			var thumbnailRect = new RECT
 			{
@@ -111,7 +154,7 @@ namespace StageManager
 			{
 				fVisible = true,
 				dwFlags = (int)(DWM_TNP.DWM_TNP_VISIBLE | DWM_TNP.DWM_TNP_OPACITY | DWM_TNP.DWM_TNP_RECTDESTINATION | DWM_TNP.DWM_TNP_SOURCECLIENTAREAONLY),
-				opacity = 255,
+				opacity = ThumbnailOpacity,
 				rcDestination = thumbnailRect,
 				fSourceClientAreaOnly = true
 			};
