@@ -17,6 +17,7 @@
         Background="Transparent"
         Padding="6">
         <ScrollViewer
+            x:Name="scroll"
             Background="Transparent"
             VerticalScrollBarVisibility="Auto"
             HorizontalScrollBarVisibility="Disabled">
