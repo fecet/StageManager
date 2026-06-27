@@ -436,6 +436,18 @@ namespace StageManager
 			NavigateToProjectPage();
 		}
 
+		private void MenuItem_ToggleSidebar_Click(object sender, RoutedEventArgs e)
+		{
+			var show = (sender as System.Windows.Controls.MenuItem)?.IsChecked ?? true;
+			foreach (var overlay in _overlays)
+			{
+				if (show)
+					overlay.Show();
+				else
+					overlay.Hide();
+			}
+		}
+
 		private void MenuItem_Quit_Click(object sender, RoutedEventArgs e)
 		{
 			Close();

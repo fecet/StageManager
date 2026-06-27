@@ -114,6 +114,12 @@
                     Opened="ContextMenu_Opened"
                     Closed="ContextMenu_Closed">
                     <MenuItem
+                        Header="Show sidebar"
+                        IsCheckable="True"
+                        IsChecked="True"
+                        Click="MenuItem_ToggleSidebar_Click" />
+                    <Separator />
+                    <MenuItem
                         Header="Start with Windows"
                         IsCheckable="True"
                         IsChecked="{Binding StartsWithWindows}" />
