@@ -40,6 +40,9 @@ namespace StageManager
 		private readonly List<ICollectionView> _stripViews = new List<ICollectionView>();
 		private readonly List<StageWindow> _satellites = new List<StageWindow>();
 		private SlideOverlay _slideOverlay;
+		private WindowsManager _windowsManager;
+		private readonly List<ExposeOverlay> _overlays = new List<ExposeOverlay>();
+		private ExposeController _exposeController;
 
 		// Window-level scenes hold exactly one window. Manual grouping (dragging a
 		// window into another scene) would defeat that, so both are off. Pull also
@@ -53,7 +56,9 @@ namespace StageManager
 
 			DataContext = this;
 
-			_overlapCheckTimer = new Timer(OverlapCheck, null, 2500, TIMERINTERVAL_MILLISECONDS);
+			// MainWindow is reduced to an invisible host for the tray icon; the strip
+			// and its scene-overlap behavior are unused, so the timer is left stopped.
+			_overlapCheckTimer = new Timer(OverlapCheck, null, Timeout.Infinite, Timeout.Infinite);
 
 			SwitchSceneCommand = new ActionCommand(async model => await SceneManager!.SwitchTo(((SceneModel)model).Scene));
 		}
@@ -64,17 +69,13 @@ namespace StageManager
 
 			_thisHandle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
 			_lastWidth = Width;
-
-			StartHook();	
 		}
 
 		protected override void OnClosed(EventArgs e)
 		{
-			StopHook();
-
 			trayIcon.Dispose();
 
-			SceneManager.Stop();
+			_windowsManager?.Stop();
 
 			base.OnClosed(e);
 
@@ -87,24 +88,20 @@ namespace StageManager
 
 			_thisHandle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
 
-			var windowsManager = new WindowsManager();
-			SceneManager = new SceneManager(windowsManager, _thisHandle);
-			await SceneManager.Start().ConfigureAwait(true);
+			_windowsManager = new WindowsManager();
+			await _windowsManager.Start().ConfigureAwait(true);
 
-			SceneManager.SceneChanged += SceneManager_SceneChanged;
-			SceneManager.CurrentSceneSelectionChanged += SceneManager_CurrentSceneSelectionChanged;
-
-			_slideOverlay = new SlideOverlay();
-			SceneManager.FocusAnimating += OnFocusAnimating;
-
-			AddInitialScenes();
-
-			SetUpStrips();
-
-			var foreground = Win32.GetForegroundWindow();
-			var foregroundScene = SceneManager.FindSceneForWindow(foreground);
-			if (foregroundScene is object)
-				await SceneManager.SwitchTo(foregroundScene).ConfigureAwait(true);
+			// One widget per monitor; each shows only the windows on that monitor.
+			_exposeController = new ExposeController(_windowsManager);
+			foreach (var mon in Win32.GetMonitors())
+			{
+				var overlay = new ExposeOverlay();
+				overlay.SetMonitor(mon.Work);
+				_exposeController.AddMonitor(mon.Handle, overlay);
+				overlay.Show();
+				_overlays.Add(overlay);
+			}
+			_exposeController.Start();
 		}
 
 		private void AddInitialScenes()
@@ -129,10 +126,7 @@ namespace StageManager
 		protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
 		{
 			base.OnRenderSizeChanged(sizeInfo);
-			var area = this.GetMonitorWorkSize();
-			this.Left = 0;
-			this.Top = 0;
-			this.Height = area.Height;
+			// MainWindow is an invisible host; do not grow it to the monitor work area.
 		}
 
 		private void SceneManager_SceneChanged(object sender, SceneChangedEventArgs e)
@@ -449,12 +443,10 @@ namespace StageManager
 
 		private void ContextMenu_Closed(object sender, RoutedEventArgs e)
 		{
-			StartHook();
 		}
 
 		private void ContextMenu_Opened(object sender, RoutedEventArgs e)
 		{
-			StopHook();
 		}
 	}
 

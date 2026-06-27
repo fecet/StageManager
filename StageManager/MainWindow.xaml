@@ -13,8 +13,10 @@
     Topmost="False"
     WindowStyle="None"
     Title="MainWindow"
-    Height="450"
-    Width="280"
+    Height="0"
+    Width="0"
+    Left="-32000"
+    Top="-32000"
     ShowActivated="False"
     Background="Transparent"
     Name="thisWindow">
