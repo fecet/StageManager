@@ -13,6 +13,7 @@ namespace StageManager
 		private string _title;
 		private ImageSource _icon;
 		private bool _isFocused;
+		private double _thumbHeight = 108;
 
 		public WindowTile(IntPtr handle)
 		{
@@ -44,6 +45,20 @@ namespace StageManager
 
 				_icon = value;
 				OnPropertyChanged(nameof(Icon));
+			}
+		}
+
+		// Thumbnail height for a fixed column width, set from the window's real aspect ratio.
+		public double ThumbHeight
+		{
+			get => _thumbHeight;
+			set
+			{
+				if (_thumbHeight == value)
+					return;
+
+				_thumbHeight = value;
+				OnPropertyChanged(nameof(ThumbHeight));
 			}
 		}
 

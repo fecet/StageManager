@@ -49,7 +49,7 @@
                                 <local:DwmThumbnail
                                     Grid.Row="0"
                                     Width="180"
-                                    Height="108"
+                                    Height="{Binding ThumbHeight}"
                                     ThumbnailOpacity="150"
                                     PreviewHandle="{Binding Handle}" />
                                 <Border

@@ -28,6 +28,8 @@ namespace StageManager
 			public ObservableCollection<WindowTile> Tiles { get; } = new ObservableCollection<WindowTile>();
 		}
 
+		private const double TileWidth = 180; // keep in sync with the DwmThumbnail width in XAML
+
 		private readonly WindowsManager _windowsManager;
 		private readonly List<MonitorView> _views = new List<MonitorView>();
 		private readonly Dictionary<IntPtr, IntPtr> _windowMonitor = new Dictionary<IntPtr, IntPtr>();
@@ -66,7 +68,7 @@ namespace StageManager
 			if (type == WindowUpdateType.Foreground)
 				Dispatch(() => SetFocused(window.Handle));
 			else if (type == WindowUpdateType.MoveEnd || type == WindowUpdateType.Move)
-				Dispatch(() => Reroute(window));
+				Dispatch(() => { Reroute(window); UpdateAspect(window); });
 		}
 
 		private void OnUntrackedFocus(object sender, IntPtr handle) => Dispatch(() => SetFocused(IntPtr.Zero));
@@ -90,9 +92,28 @@ namespace StageManager
 			{
 				Title = window.Title,
 				Icon = ExtractIcon(window),
-				IsFocused = window.IsFocused
+				IsFocused = window.IsFocused,
+				ThumbHeight = ThumbHeightFor(window)
 			});
 			_windowMonitor[window.Handle] = view.Monitor;
+		}
+
+		// Thumbnail height for the fixed column width, from the window's real aspect ratio.
+		// A minimized/unknown window has no usable rect, so fall back to 16:9.
+		private static double ThumbHeightFor(IWindow window)
+		{
+			var location = window.Location;
+			if (location is null || location.Width <= 0 || location.Height <= 0)
+				return TileWidth * 9.0 / 16.0;
+
+			return Math.Clamp(TileWidth * location.Height / location.Width, 60, 320);
+		}
+
+		private void UpdateAspect(IWindow window)
+		{
+			foreach (var view in _views)
+				if (view.Tiles.FirstOrDefault(t => t.Handle == window.Handle) is WindowTile tile)
+					tile.ThumbHeight = ThumbHeightFor(window);
 		}
 
 		private void RemoveTile(IntPtr handle)
