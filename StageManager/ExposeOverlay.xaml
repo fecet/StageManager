@@ -19,7 +19,7 @@
         <ScrollViewer
             x:Name="scroll"
             Background="Transparent"
-            VerticalScrollBarVisibility="Auto"
+            VerticalScrollBarVisibility="Hidden"
             HorizontalScrollBarVisibility="Disabled">
             <ItemsControl x:Name="tilesControl">
                 <ItemsControl.ItemTemplate>
