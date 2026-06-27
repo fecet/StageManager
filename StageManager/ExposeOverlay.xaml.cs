@@ -65,14 +65,19 @@ namespace StageManager
 				Win32.SetWindowPosFlags.DoNotActivate | Win32.SetWindowPosFlags.IgnoreResize);
 		}
 
-		// Pin to this monitor's right edge, vertically centered, in physical px; re-assert topmost.
+		// Pin to this monitor's right edge, vertically centered, in physical px; re-assert
+		// topmost. Size comes from the WPF layout (ActualWidth/Height x DPI), not
+		// GetWindowRect, which can still report the pre-resize rect inside SizeChanged and
+		// would mis-center the strip.
 		private void AnchorToMonitor()
 		{
-			var rect = new Win32.Rect();
-			Win32.GetWindowRect(Handle, ref rect);
-			var physicalWidth = rect.Right - rect.Left;
-			var physicalHeight = rect.Bottom - rect.Top;
-			var gap = (int)(EdgeGap * VisualTreeHelper.GetDpi(this).DpiScaleX);
+			var dpi = VisualTreeHelper.GetDpi(this);
+			var physicalWidth = (int)(ActualWidth * dpi.DpiScaleX);
+			var physicalHeight = (int)(ActualHeight * dpi.DpiScaleY);
+			if (physicalWidth <= 0 || physicalHeight <= 0)
+				return;
+
+			var gap = (int)(EdgeGap * dpi.DpiScaleX);
 			var workHeight = _work.Bottom - _work.Top;
 
 			var left = _work.Right - physicalWidth - gap;
