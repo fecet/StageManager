@@ -30,8 +30,11 @@ namespace StageManager.Native.PInvoke
         public static bool IsAltTabWindow(IntPtr hWnd)
         {
             var exStyle = Win32.GetWindowExStyleLongPtr(hWnd);
-            if (exStyle.HasFlag(Win32.WS_EX.WS_EX_TOOLWINDOW) ||
-                Win32.GetWindow(hWnd, Win32.GW.GW_OWNER) != IntPtr.Zero)
+            // Reject owned windows: tooltips, palettes and other helper popups are owned by
+            // a main window. Do NOT reject on WS_EX_TOOLWINDOW alone - some Qt apps and games
+            // give their custom-chrome main window that style, and a genuine tool window is
+            // almost always owned, so the owner check already filters those out.
+            if (Win32.GetWindow(hWnd, Win32.GW.GW_OWNER) != IntPtr.Zero)
             {
                 return false;
             }
