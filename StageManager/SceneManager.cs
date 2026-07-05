@@ -28,7 +28,7 @@ namespace StageManager
 		// by the UI (which calls RevealInStage on completion) instead of snapping.
 		public event Action<IWindow, Win32.Rect> FocusAnimating;
 
-		private IWindowStrategy WindowStrategy { get; } = new NormalizeAndMinimizeWindowStrategy(); // new WindowNormalizeStrategy/OpacityWindowStrategy/ShowAndHideWindowStrategy
+		private IWindowStrategy WindowStrategy { get; } = new NormalizeAndMinimizeWindowStrategy();
 
 		public WindowsManager WindowsManager { get; }
 
