@@ -42,24 +42,19 @@
                                 </Style>
                             </Border.Style>
                             <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
                                 <local:DwmThumbnail
-                                    Grid.Row="0"
                                     Width="180"
                                     Height="{Binding ThumbHeight}"
                                     ThumbnailOpacity="150"
                                     PreviewHandle="{Binding Handle}" />
                                 <Border
-                                    Grid.Row="1"
                                     Background="#B0000000"
                                     CornerRadius="4"
                                     Padding="4,2"
                                     Margin="0,4,0,0"
-                                    MaxWidth="180"
-                                    HorizontalAlignment="Center">
+                                    MaxWidth="172"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Top">
                                     <StackPanel Orientation="Horizontal">
                                         <Image
                                             Source="{Binding Icon}"
