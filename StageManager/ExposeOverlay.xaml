@@ -22,10 +22,20 @@
             VerticalScrollBarVisibility="Hidden"
             HorizontalScrollBarVisibility="Disabled">
             <ItemsControl x:Name="tilesControl">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <!-- ColumnWidth is the 180 thumbnail plus the tile's 2px border on
+                             each side, so a tile occupies exactly one column. -->
+                        <local:MasonryPanel
+                            ColumnWidth="184"
+                            Gap="8"
+                            MaxColumnHeight="{Binding ColumnHeightLimit, ElementName=thisWindow}"
+                            MaxColumns="{Binding ColumnLimit, ElementName=thisWindow}" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Border
-                            Margin="0,0,0,8"
                             CornerRadius="6"
                             BorderThickness="2"
                             Background="#01000000"

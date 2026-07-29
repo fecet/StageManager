@@ -10,17 +10,21 @@ using System.Windows.Media;
 namespace StageManager
 {
 	/// <summary>
-	/// Interaction logic for ExposeOverlay.xaml. A persistent, topmost floating widget on
-	/// ONE monitor: a vertically-centered, scrollable column of live DWM thumbnails (the
-	/// windows on that monitor). When the column scrolls, tiles fade out toward the top and
-	/// bottom edges. It raises <see cref="TileClicked"/> when a tile is clicked, never
-	/// covers the desktop, and positions in physical pixels so it lands on the right monitor
-	/// regardless of per-monitor DPI.
+	/// Interaction logic for ExposeOverlay.xaml. A single persistent, topmost floating widget
+	/// showing every tracked window as a live DWM thumbnail, laid out by
+	/// <see cref="MasonryPanel"/>. It sits on one monitor (the primary) and is pinned there in
+	/// physical pixels so per-monitor DPI cannot misplace it. When the tiles scroll, they fade
+	/// out toward the top and bottom edges. It raises <see cref="TileClicked"/> when a tile is
+	/// clicked and never covers the desktop.
 	/// </summary>
 	public partial class ExposeOverlay : Window
 	{
 		private const double EdgeGap = 12;
 		private const byte BaseThumbOpacity = 150;
+		private const double ContentPadding = 6; // the Border around the ScrollViewer
+		private const double ColumnWidth = 184; // keep in sync with the MasonryPanel in XAML
+		private const double ColumnGap = 8;     // keep in sync with the MasonryPanel in XAML
+		private const double MaxWidthFraction = 0.5; // widget may claim at most half the work area
 		private Win32.Rect _work; // target monitor work area, physical px
 
 		public ExposeOverlay()
@@ -30,12 +34,49 @@ namespace StageManager
 			SizeChanged += (_, _) => { AnchorToMonitor(); UpdateFade(); };
 			Loaded += (_, _) =>
 			{
-				var scale = VisualTreeHelper.GetDpi(this).DpiScaleY;
-				if (scale > 0)
-					MaxHeight = (_work.Bottom - _work.Top) / scale - 2 * EdgeGap;
+				ApplyWorkAreaLimits();
 				AnchorToMonitor();
 				UpdateFade();
 			};
+		}
+
+		/// <summary>Height a masonry column may reach before another column opens (DIP).</summary>
+		public static readonly DependencyProperty ColumnHeightLimitProperty = DependencyProperty.Register(
+			nameof(ColumnHeightLimit), typeof(double), typeof(ExposeOverlay),
+			new PropertyMetadata(double.PositiveInfinity));
+
+		public double ColumnHeightLimit
+		{
+			get => (double)GetValue(ColumnHeightLimitProperty);
+			set => SetValue(ColumnHeightLimitProperty, value);
+		}
+
+		/// <summary>How many masonry columns the work area's width can afford.</summary>
+		public static readonly DependencyProperty ColumnLimitProperty = DependencyProperty.Register(
+			nameof(ColumnLimit), typeof(int), typeof(ExposeOverlay),
+			new PropertyMetadata(1));
+
+		public int ColumnLimit
+		{
+			get => (int)GetValue(ColumnLimitProperty);
+			set => SetValue(ColumnLimitProperty, value);
+		}
+
+		// Translate the monitor work area into the DIP budget the masonry may use. Done at
+		// Loaded, not OnSourceInitialized: the per-monitor DPI context is not settled that
+		// early, so WorkArea would read as raw pixels and the caps would come out far too big.
+		private void ApplyWorkAreaLimits()
+		{
+			var dpi = VisualTreeHelper.GetDpi(this);
+			if (dpi.DpiScaleX <= 0 || dpi.DpiScaleY <= 0)
+				return;
+
+			MaxHeight = (_work.Bottom - _work.Top) / dpi.DpiScaleY - 2 * EdgeGap;
+			ColumnHeightLimit = MaxHeight - 2 * ContentPadding;
+
+			// n columns span n * ColumnWidth + (n - 1) * ColumnGap.
+			var widthBudget = (_work.Right - _work.Left) / dpi.DpiScaleX * MaxWidthFraction;
+			ColumnLimit = Math.Max(1, (int)((widthBudget + ColumnGap) / (ColumnWidth + ColumnGap)));
 		}
 
 		private IntPtr Handle => new WindowInteropHelper(this).Handle;

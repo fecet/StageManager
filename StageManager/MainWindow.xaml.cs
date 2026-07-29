@@ -91,16 +91,22 @@ namespace StageManager
 			_windowsManager = new WindowsManager();
 			await _windowsManager.Start().ConfigureAwait(true);
 
-			// One widget per monitor; each shows only the windows on that monitor.
+			// A single widget on the primary monitor, holding every window on every monitor:
+			// the masonry columns absorb what a per-monitor split used to spread out, and a
+			// narrow secondary display (where the widget would eat a large share of the width)
+			// no longer has to carry one.
 			_exposeController = new ExposeController(_windowsManager);
-			foreach (var mon in Win32.GetMonitors())
-			{
-				var overlay = new ExposeOverlay();
-				overlay.SetMonitor(mon.Work);
-				_exposeController.AddMonitor(mon.Handle, overlay);
-				overlay.Show();
-				_overlays.Add(overlay);
-			}
+			var monitors = Win32.GetMonitors();
+			var host = monitors.FirstOrDefault(m => m.IsPrimary);
+			if (host.Handle == IntPtr.Zero && monitors.Count > 0)
+				host = monitors[0];
+
+			var overlay = new ExposeOverlay();
+			overlay.SetMonitor(host.Work);
+			_exposeController.SetOverlay(overlay);
+			overlay.Show();
+			_overlays.Add(overlay);
+
 			_exposeController.Start();
 		}
 

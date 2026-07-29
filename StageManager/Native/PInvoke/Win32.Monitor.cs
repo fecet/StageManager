@@ -16,14 +16,20 @@ namespace StageManager.Native.PInvoke
 		[DllImport("user32.dll")]
 		private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumProc lpfnEnum, IntPtr dwData);
 
+		private const uint MONITORINFOF_PRIMARY = 1;
+
 		public readonly struct MonitorArea
 		{
-			public MonitorArea(IntPtr handle, Rect work) { Handle = handle; Work = work; }
+			public MonitorArea(IntPtr handle, Rect work, bool isPrimary) { Handle = handle; Work = work; IsPrimary = isPrimary; }
 			public IntPtr Handle { get; }
 			public Rect Work { get; }
+			public bool IsPrimary { get; }
 		}
 
-		/// <summary>All monitors with their work areas (physical pixels), primary first.</summary>
+		/// <summary>
+		/// All monitors with their work areas (physical pixels), in EnumDisplayMonitors order —
+		/// which does NOT put the primary first. Select on <see cref="MonitorArea.IsPrimary"/>.
+		/// </summary>
 		public static List<MonitorArea> GetMonitors()
 		{
 			var result = new List<MonitorArea>();
@@ -31,7 +37,7 @@ namespace StageManager.Native.PInvoke
 			{
 				var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
 				if (GetMonitorInfo(hMon, ref mi))
-					result.Add(new MonitorArea(hMon, mi.rcWork));
+					result.Add(new MonitorArea(hMon, mi.rcWork, (mi.dwFlags & MONITORINFOF_PRIMARY) != 0));
 				return true;
 			}, IntPtr.Zero);
 			return result;
