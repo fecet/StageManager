@@ -311,17 +311,17 @@ namespace StageManager.Native
 			}
 		}
 
+		// Every location change is reported, not just the one being dragged. Gating this on
+		// _mouseMoveWindow limited Move to mouse drags, which drops maximize, snap, restore
+		// and every app-driven resize -- leaving subscribers that track window geometry stuck
+		// with the size a window had when they first saw it.
 		private void WindowMove(IntPtr handle)
 		{
 			if (!_active)
 				return;
 
-			if (_mouseMoveWindow != null && _windows.ContainsKey(handle))
-			{
-				var window = _windows[handle];
-				if (_mouseMoveWindow == window)
-					WindowUpdated?.Invoke(window, WindowUpdateType.Move);
-			}
+			if (_windows.ContainsKey(handle))
+				WindowUpdated?.Invoke(_windows[handle], WindowUpdateType.Move);
 		}
 
 		private void HandleWindowFocused(IWindow window)
