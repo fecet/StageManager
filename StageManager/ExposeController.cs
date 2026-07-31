@@ -26,12 +26,14 @@ namespace StageManager
 		private const double UnitGap = 8;
 		private const double TileBorder = 2; // the tile Border's BorderThickness, per side
 
-		// Widest a tile gets: a window covering its whole monitor. Three units across, so a
-		// full-size tile fills its columns exactly.
-		private const double MaxTileWidth = 3 * Unit + 2 * UnitGap - 2 * TileBorder;
+		// A tile covering its whole monitor is this big. Three units across, so a full-size
+		// tile fills its columns exactly. It also bounds the other direction, keeping a
+		// full-screen portrait window from standing twice as tall as a landscape one.
+		private const double MaxTileSize = 3 * Unit + 2 * UnitGap - 2 * TileBorder;
 
-		// Narrowest a tile gets, so a small window still leaves something legible to click.
-		private const double MinTileWidth = 56;
+		// Smallest a tile's longer side may get, so a window still leaves something legible
+		// to click. A vertical taskbar is a few pixels wide at true scale.
+		private const double MinTileSize = 56;
 
 		private readonly WindowsManager _windowsManager;
 		private readonly ObservableCollection<WindowTile> _tiles = new ObservableCollection<WindowTile>();
@@ -95,14 +97,14 @@ namespace StageManager
 			_tiles.Add(tile);
 		}
 
-		// A tile is the window scaled down, continuously: its size is the same share of the
-		// widest tile that the window is of its own monitor, and its height is the window's
-		// true aspect ratio. Nothing is quantized and nothing is cropped, so the tiles read as
-		// the windows they mirror, the way a compositor overview scales a desktop down.
+		// A tile is its window under a single scale factor, both dimensions at once, the way a
+		// compositor overview shrinks a whole desktop. Nothing is quantized and nothing is
+		// cropped, so relative sizes and shapes survive: two windows differing by any amount
+		// draw tiles differing by that amount.
 		//
-		// Measuring the share against the window's own monitor rather than in raw pixels is
-		// what makes two windows comparable: a maximized window reads the same on the GPD's
-		// 1080p panel as on a 4K screen, and a tool window stays small on either.
+		// The scale is per monitor, a window's size relative to the screen it lives on rather
+		// than in raw pixels, so a maximized window reads the same on the GPD's 1080p panel as
+		// on a 4K screen and a tool window stays small on either.
 		//
 		// The grid only bounds the packing (see MasonryPanel), and the panel behind the tiles
 		// is what makes the whole widget a rectangle; the tiles themselves do not pave one.
@@ -123,15 +125,34 @@ namespace StageManager
 				return; // nothing to derive a shape from; leave the tile at the size it has
 
 			var work = Win32.GetWorkArea(handle);
-			var workArea = (double)(work.Right - work.Left) * (work.Bottom - work.Top);
-			var fill = workArea > 0 ? (double)source.Width * source.Height / workArea : 1;
+			var workWidth = (double)(work.Right - work.Left);
+			if (workWidth <= 0)
+				return;
 
-			// Square-root turns the area fraction into a linear one, so the tile is as wide a
-			// share of the widest tile as the window is of its own monitor.
-			var width = Math.Clamp(MaxTileWidth * Math.Sqrt(fill), MinTileWidth, MaxTileWidth);
+			var scale = MaxTileSize / workWidth;
+			var width = source.Width * scale;
+			var height = source.Height * scale;
+
+			// Both bounds rescale the tile whole, so its shape survives either way. Without the
+			// ceiling one tall window (a vertical taskbar runs about 1:18) would tower over the
+			// grid and drag the widget to its height limit; without the floor that same window
+			// would be a few pixels wide.
+			var over = height / MaxTileSize;
+			if (over > 1)
+			{
+				width /= over;
+				height = MaxTileSize;
+			}
+
+			var under = MinTileSize / Math.Max(width, height);
+			if (under > 1)
+			{
+				width *= under;
+				height *= under;
+			}
 
 			tile.ThumbWidth = width;
-			tile.ThumbHeight = width * source.Height / source.Width;
+			tile.ThumbHeight = height;
 		}
 
 		// Content size of a tile spanning this many grid units, with the tile's own border
