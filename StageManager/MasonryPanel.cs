@@ -18,6 +18,9 @@ namespace StageManager
 	/// </summary>
 	public class MasonryPanel : Panel
 	{
+		// Most candidate widths a single measure will try.
+		private const int MaxSweepSteps = 64;
+
 		private readonly List<Point> _origins = new List<Point>();
 		private Size _packed;
 
@@ -55,9 +58,11 @@ namespace StageManager
 			set => SetValue(HeightLimitProperty, value);
 		}
 
+		// Finite on purpose. The measure sweep walks candidate widths up to this value, so an
+		// infinite default would spin the UI thread forever if the real limit never arrived.
 		public static readonly DependencyProperty WidthLimitProperty = DependencyProperty.Register(
 			nameof(WidthLimit), typeof(double), typeof(MasonryPanel),
-			new FrameworkPropertyMetadata(double.PositiveInfinity, FrameworkPropertyMetadataOptions.AffectsMeasure));
+			new FrameworkPropertyMetadata(1200d, FrameworkPropertyMetadataOptions.AffectsMeasure));
 
 		public double WidthLimit
 		{
@@ -94,8 +99,14 @@ namespace StageManager
 			var bestScore = double.MaxValue;
 			var fits = false;
 
-			for (var width = widest; width <= limit + 0.01; width += WidthStep)
+			// Bounded by step count, not just by `limit`: the sweep runs during measure, on the
+			// UI thread, so a limit that is infinite or absurd has to end the loop rather than
+			// hang the window with no content ever drawn.
+			var steps = WidthStep > 0 ? (int)Math.Min(MaxSweepSteps, (limit - widest) / WidthStep) : 0;
+
+			for (var step = 0; step <= steps; step++)
 			{
+				var width = widest + step * WidthStep;
 				var size = Pack(width);
 				var overflows = size.Height > HeightLimit;
 
@@ -127,8 +138,6 @@ namespace StageManager
 			// Report the rectangle the tiles actually occupy, not the width they were packed
 			// into: the chosen step usually overshoots, and the difference would be dead margin.
 			_packed = Pack(best);
-			System.IO.File.AppendAllText(@"C:\Relay\sm-diag.txt",
-				$"measure: n={InternalChildren.Count} widest={widest:F0} wLimit={WidthLimit:F0} hLimit={HeightLimit:F0} aspect={TargetAspect:F2} best={best:F0} packed={_packed.Width:F0}x{_packed.Height:F0}\n");
 			return _packed;
 		}
 
