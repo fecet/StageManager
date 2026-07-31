@@ -6,15 +6,15 @@ using System.Windows.Controls;
 namespace StageManager
 {
 	/// <summary>
-	/// Masonry layout on a fixed grid of <see cref="UnitWidth"/> columns. A tile spans a whole
-	/// number of units — like a Windows tile, so the grid's edges stay aligned — and is packed
-	/// into the lowest run of adjacent columns wide enough to hold it. Column count grows only
-	/// as needed: the panel starts at the widest tile's span and opens another column whenever
-	/// the tallest one would exceed <see cref="MaxColumnHeight"/>, up to <see cref="MaxColumns"/>.
+	/// Masonry layout over a grid of <see cref="UnitWidth"/> columns. Tiles are sized freely by
+	/// their owner; the grid only bounds the packing, so each tile occupies as many adjacent
+	/// columns as its width needs and is centred in them. It goes into the lowest run of columns
+	/// that can hold it, which is what keeps a wide tile from being laid over a neighbour.
 	///
-	/// Only the width snaps to the grid. A tile's height is its window's true aspect ratio,
-	/// because DWM letterboxes the thumbnail at that ratio and any other height shows up as an
-	/// empty band, so heights stay ragged and the packing absorbs the difference.
+	/// Column count grows only as needed: the panel starts at the widest tile's span and opens
+	/// another column whenever the tallest one would exceed <see cref="MaxColumnHeight"/>, up to
+	/// <see cref="MaxColumns"/>. Tile heights are their windows' true aspect ratios, so they stay
+	/// ragged and the packing absorbs the difference.
 	/// </summary>
 	public class MasonryPanel : Panel
 	{
@@ -89,9 +89,13 @@ namespace StageManager
 		/// <summary>Width covered by this many units, gaps between them included.</summary>
 		private double Extent(int units) => units * UnitWidth + (units - 1) * Gap;
 
-		/// <summary>How many grid units a tile covers, from the width it asked for.</summary>
+		/// <summary>
+		/// How many grid units a tile occupies: the fewest whose extent covers the width it
+		/// asked for. Tile widths are continuous, so this rounds up rather than to nearest —
+		/// a tile must never be laid over a column its neighbour also holds.
+		/// </summary>
 		private int SpanOf(UIElement child) =>
-			Math.Max(1, (int)Math.Round((child.DesiredSize.Width + Gap) / (UnitWidth + Gap)));
+			Math.Max(1, (int)Math.Ceiling((child.DesiredSize.Width + Gap) / (UnitWidth + Gap) - 1e-6));
 
 		protected override Size ArrangeOverride(Size finalSize)
 		{
@@ -104,8 +108,9 @@ namespace StageManager
 		}
 
 		// Place every child at the lowest run of columns its span fits into, recording its
-		// origin, and return the height of the tallest column. A two-unit tile straddles two
-		// columns and pushes both down, which is what keeps the grid's edges aligned.
+		// origin, and return the height of the tallest column. A multi-unit tile straddles
+		// that many columns and pushes all of them down, and a tile narrower than the run it
+		// occupies is centred in it.
 		private double Pack(int columns)
 		{
 			var heights = new double[columns];
@@ -116,8 +121,9 @@ namespace StageManager
 				var span = Math.Min(columns, SpanOf(child));
 				var start = LowestRun(heights, span);
 				var top = RunTop(heights, start, span);
+				var inset = Math.Max(0, Extent(span) - child.DesiredSize.Width) / 2;
 
-				_origins.Add(new Point(start * (UnitWidth + Gap), top));
+				_origins.Add(new Point(start * (UnitWidth + Gap) + inset, top));
 
 				var bottom = top + child.DesiredSize.Height + Gap;
 				for (int c = start; c < start + span; c++)

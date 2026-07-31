@@ -26,10 +26,12 @@ namespace StageManager
 		private const double UnitGap = 8;
 		private const double TileBorder = 2; // the tile Border's BorderThickness, per side
 
-		// Widest a tile gets, in units. The span is this many times the window's linear share of
-		// its monitor, so the sizes spread over the whole range instead of the two the grid
-		// would otherwise offer.
-		private const int MaxSpan = 3;
+		// Widest a tile gets: a window covering its whole monitor. Three units across, so a
+		// full-size tile fills its columns exactly.
+		private const double MaxTileWidth = 3 * Unit + 2 * UnitGap - 2 * TileBorder;
+
+		// Narrowest a tile gets, so a small window still leaves something legible to click.
+		private const double MinTileWidth = 56;
 
 		private readonly WindowsManager _windowsManager;
 		private readonly ObservableCollection<WindowTile> _tiles = new ObservableCollection<WindowTile>();
@@ -93,15 +95,17 @@ namespace StageManager
 			_tiles.Add(tile);
 		}
 
-		// A tile's width snaps to the grid so the columns line up, but its height stays the
-		// window's true aspect ratio - the tile keeps the window's shape rather than being
-		// squared off to the grid, and the thumbnail needs no cropping to fill it. The panel
-		// behind the tiles is what makes the whole widget a rectangle; the tiles themselves
-		// do not have to pave one.
+		// A tile is the window scaled down, continuously: its size is the same share of the
+		// widest tile that the window is of its own monitor, and its height is the window's
+		// true aspect ratio. Nothing is quantized and nothing is cropped, so the tiles read as
+		// the windows they mirror, the way a compositor overview scales a desktop down.
 		//
-		// The span comes from how much of its own monitor the window fills, measured against
-		// the monitor rather than in raw pixels, so a maximized window reads the same on the
-		// GPD's 1080p panel as on a 4K screen and a tool window stays small on either.
+		// Measuring the share against the window's own monitor rather than in raw pixels is
+		// what makes two windows comparable: a maximized window reads the same on the GPD's
+		// 1080p panel as on a 4K screen, and a tool window stays small on either.
+		//
+		// The grid only bounds the packing (see MasonryPanel), and the panel behind the tiles
+		// is what makes the whole widget a rectangle; the tiles themselves do not pave one.
 		private static void Resize(WindowTile tile, IntPtr handle)
 		{
 			tile.IsMinimized = Win32.IsIconic(handle);
@@ -122,12 +126,12 @@ namespace StageManager
 			var workArea = (double)(work.Right - work.Left) * (work.Bottom - work.Top);
 			var fill = workArea > 0 ? (double)source.Width * source.Height / workArea : 1;
 
-			// Square-root turns the area fraction into a linear one, so a window covering a
-			// quarter of its screen is half a screen wide and lands mid-range rather than small.
-			var span = Math.Clamp((int)Math.Round(Math.Sqrt(fill) * MaxSpan), 1, MaxSpan);
+			// Square-root turns the area fraction into a linear one, so the tile is as wide a
+			// share of the widest tile as the window is of its own monitor.
+			var width = Math.Clamp(MaxTileWidth * Math.Sqrt(fill), MinTileWidth, MaxTileWidth);
 
-			tile.ThumbWidth = Extent(span);
-			tile.ThumbHeight = tile.ThumbWidth * source.Height / source.Width;
+			tile.ThumbWidth = width;
+			tile.ThumbHeight = width * source.Height / source.Width;
 		}
 
 		// Content size of a tile spanning this many grid units, with the tile's own border
