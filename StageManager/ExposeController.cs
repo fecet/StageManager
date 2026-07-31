@@ -26,13 +26,10 @@ namespace StageManager
 		private const double UnitGap = 8;
 		private const double TileBorder = 2; // the tile Border's BorderThickness, per side
 
-		// A window filling at least this much of its monitor earns the two-unit-wide tile.
-		// Measured as an area fraction, so the threshold is half the screen in each dimension.
-		private const double WideTileFill = 0.25;
-
-		// Tallest a tile may get. A 2x4 tile from some 1:2 window would tower over the grid and
-		// leave a column of holes beside it; three units is as far as the packing absorbs well.
-		private const int MaxSpanHeight = 3;
+		// Widest a tile gets, in units. The span is this many times the window's linear share of
+		// its monitor, so the sizes spread over the whole range instead of the two the grid
+		// would otherwise offer.
+		private const int MaxSpan = 3;
 
 		private readonly WindowsManager _windowsManager;
 		private readonly ObservableCollection<WindowTile> _tiles = new ObservableCollection<WindowTile>();
@@ -96,15 +93,15 @@ namespace StageManager
 			_tiles.Add(tile);
 		}
 
-		// A tile is a whole number of grid units in both directions, so the tiles pave a
-		// rectangle instead of ragging out like a masonry column. How much of its own monitor
-		// the window fills picks the width - measured against the monitor rather than in raw
-		// pixels, so a maximized window reads the same on the GPD's 1080p panel as on a 4K
-		// screen - and its aspect ratio picks the height, rounded to the nearest unit.
+		// A tile's width snaps to the grid so the columns line up, but its height stays the
+		// window's true aspect ratio - the tile keeps the window's shape rather than being
+		// squared off to the grid, and the thumbnail needs no cropping to fill it. The panel
+		// behind the tiles is what makes the whole widget a rectangle; the tiles themselves
+		// do not have to pave one.
 		//
-		// Rounding the height means the tile no longer matches the window's ratio, so the
-		// thumbnail is center-cropped to fill it (see DwmThumbnail). Letting the tile keep the
-		// exact ratio instead is what leaves the grid ragged.
+		// The span comes from how much of its own monitor the window fills, measured against
+		// the monitor rather than in raw pixels, so a maximized window reads the same on the
+		// GPD's 1080p panel as on a 4K screen and a tool window stays small on either.
 		private static void Resize(WindowTile tile, IntPtr handle)
 		{
 			tile.IsMinimized = Win32.IsIconic(handle);
@@ -125,12 +122,12 @@ namespace StageManager
 			var workArea = (double)(work.Right - work.Left) * (work.Bottom - work.Top);
 			var fill = workArea > 0 ? (double)source.Width * source.Height / workArea : 1;
 
-			var spanWidth = fill >= WideTileFill ? 2 : 1;
-			var ratio = (double)source.Height / source.Width;
-			var spanHeight = Math.Clamp((int)Math.Round(spanWidth * ratio), 1, MaxSpanHeight);
+			// Square-root turns the area fraction into a linear one, so a window covering a
+			// quarter of its screen is half a screen wide and lands mid-range rather than small.
+			var span = Math.Clamp((int)Math.Round(Math.Sqrt(fill) * MaxSpan), 1, MaxSpan);
 
-			tile.ThumbWidth = Extent(spanWidth);
-			tile.ThumbHeight = Extent(spanHeight);
+			tile.ThumbWidth = Extent(span);
+			tile.ThumbHeight = tile.ThumbWidth * source.Height / source.Width;
 		}
 
 		// Content size of a tile spanning this many grid units, with the tile's own border
