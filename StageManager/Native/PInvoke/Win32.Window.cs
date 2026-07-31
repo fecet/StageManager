@@ -48,6 +48,13 @@ namespace StageManager.Native.PInvoke
         [DllImport("user32.dll")]
         public static extern bool GetClientRect(IntPtr hwnd, ref Rect rectangle);
 
+        /// <summary>
+        /// The window's monitor scaling, straight from the system. WPF's own DPI context can
+        /// still read 96 for a layered, never-activated window well after Loaded.
+        /// </summary>
+        [DllImport("user32.dll")]
+        public static extern uint GetDpiForWindow(IntPtr hwnd);
+
         [Flags()]
         public enum SetWindowPosFlags : uint
         {

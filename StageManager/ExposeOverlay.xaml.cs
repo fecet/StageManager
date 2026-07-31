@@ -83,15 +83,28 @@ namespace StageManager
 			AnchorToMonitor();
 		}
 
+		// This window's monitor scaling. Read from the system rather than through
+		// VisualTreeHelper.GetDpi, which keeps reporting 96 for this window - layered,
+		// ShowActivated=False, never focused - long after Loaded, and never raises
+		// OnDpiChanged either, because from WPF's side nothing ever changed.
+		private double Scaling
+		{
+			get
+			{
+				var dpi = Win32.GetDpiForWindow(Handle);
+				return dpi > 0 ? dpi / 96.0 : VisualTreeHelper.GetDpi(this).DpiScaleX;
+			}
+		}
+
 		// Translate the monitor work area into the DIP budget the masonry may use.
 		private void ApplyWorkAreaLimits()
 		{
-			var dpi = VisualTreeHelper.GetDpi(this);
-			if (dpi.DpiScaleX <= 0 || dpi.DpiScaleY <= 0)
+			var scaling = Scaling;
+			if (scaling <= 0)
 				return;
 
-			var workWidth = (_work.Right - _work.Left) / dpi.DpiScaleX;
-			var workHeight = (_work.Bottom - _work.Top) / dpi.DpiScaleY;
+			var workWidth = (_work.Right - _work.Left) / scaling;
+			var workHeight = (_work.Bottom - _work.Top) / scaling;
 
 			MaxHeight = workHeight - 2 * EdgeGap;
 			ContentHeightLimit = MaxHeight - 2 * ContentPadding;
@@ -144,13 +157,13 @@ namespace StageManager
 		// would mis-center the strip.
 		private void AnchorToMonitor()
 		{
-			var dpi = VisualTreeHelper.GetDpi(this);
-			var physicalWidth = (int)(ActualWidth * dpi.DpiScaleX);
-			var physicalHeight = (int)(ActualHeight * dpi.DpiScaleY);
+			var scaling = Scaling;
+			var physicalWidth = (int)(ActualWidth * scaling);
+			var physicalHeight = (int)(ActualHeight * scaling);
 			if (physicalWidth <= 0 || physicalHeight <= 0)
 				return;
 
-			var gap = (int)(EdgeGap * dpi.DpiScaleX);
+			var gap = (int)(EdgeGap * scaling);
 			var workHeight = _work.Bottom - _work.Top;
 
 			var left = _work.Right - physicalWidth - gap;
