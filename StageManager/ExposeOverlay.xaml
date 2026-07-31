@@ -13,11 +13,12 @@
     SizeToContent="WidthAndHeight"
     Title="Stage"
     Name="thisWindow">
-    <!-- The tiles pave a rectangle, and this panel is its backing: one slab the grid sits on,
-         rather than tiles floating loose over the desktop. Its alpha is well above 1, so the
-         whole slab owns its pixels and clicks in the gaps between tiles land on the widget. -->
+    <!-- The tiles pave a rectangle, and this panel is its backing: one solid slab the grid
+         sits on, rather than tiles floating loose over the desktop. Nearly opaque on purpose -
+         a see-through slab lets whatever is behind it read straight through the tiles, which
+         is what stops the grid from looking like a grid at all. -->
     <Border
-        Background="#59000000"
+        Background="#F0161616"
         CornerRadius="8"
         Padding="8">
         <ScrollViewer
@@ -60,7 +61,7 @@
                                 <!-- A live preview, or just the app icon when the window is
                                      minimized and DWM has no thumbnail left to mirror. -->
                                 <local:DwmThumbnail
-                                    ThumbnailOpacity="150"
+                                    ThumbnailOpacity="235"
                                     PreviewHandle="{Binding Handle}">
                                     <local:DwmThumbnail.Style>
                                         <Style TargetType="local:DwmThumbnail">

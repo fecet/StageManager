@@ -20,7 +20,7 @@ namespace StageManager
 	public partial class ExposeOverlay : Window
 	{
 		private const double EdgeGap = 12;
-		private const byte BaseThumbOpacity = 150;
+		private const byte BaseThumbOpacity = 235; // keep in sync with the DwmThumbnail in XAML
 		private const double ContentPadding = 8; // the panel Border around the ScrollViewer
 		private const double UnitWidth = 88;    // keep in sync with the MasonryPanel in XAML
 		private const double ColumnGap = 8;     // keep in sync with the MasonryPanel in XAML
