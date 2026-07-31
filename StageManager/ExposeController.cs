@@ -20,15 +20,19 @@ namespace StageManager
 	/// </summary>
 	public class ExposeController
 	{
-		// The masonry grid. A tile spans one unit or two, never a fraction, so tiles line up on
-		// the grid the way Windows tiles do. Keep in sync with the MasonryPanel in XAML.
-		private const double UnitWidth = 88;
+		// The tile grid: a square unit, and a tile spanning a whole number of units in each
+		// direction. Keep in sync with the MasonryPanel in XAML.
+		private const double Unit = 88;
 		private const double UnitGap = 8;
 		private const double TileBorder = 2; // the tile Border's BorderThickness, per side
 
-		// A window filling at least this much of its monitor earns the two-unit tile. Measured
-		// as an area fraction, so the threshold is half the screen in each dimension.
+		// A window filling at least this much of its monitor earns the two-unit-wide tile.
+		// Measured as an area fraction, so the threshold is half the screen in each dimension.
 		private const double WideTileFill = 0.25;
+
+		// Tallest a tile may get. A 2x4 tile from some 1:2 window would tower over the grid and
+		// leave a column of holes beside it; three units is as far as the packing absorbs well.
+		private const int MaxSpanHeight = 3;
 
 		private readonly WindowsManager _windowsManager;
 		private readonly ObservableCollection<WindowTile> _tiles = new ObservableCollection<WindowTile>();
@@ -92,15 +96,15 @@ namespace StageManager
 			_tiles.Add(tile);
 		}
 
-		// A tile carries two facts about its window: how much of its own monitor the window
-		// fills picks the tile's span, and the aspect ratio gives its height. Measuring the fill
-		// against the monitor rather than in raw pixels is what makes the two boxes comparable -
-		// a maximized window reads the same whether it sits on the GPD's 1080p panel or on a 4K
-		// screen, and a small tool window stays small on either.
+		// A tile is a whole number of grid units in both directions, so the tiles pave a
+		// rectangle instead of ragging out like a masonry column. How much of its own monitor
+		// the window fills picks the width - measured against the monitor rather than in raw
+		// pixels, so a maximized window reads the same on the GPD's 1080p panel as on a 4K
+		// screen - and its aspect ratio picks the height, rounded to the nearest unit.
 		//
-		// The height is deliberately unquantized: DWM letterboxes the thumbnail at the source's
-		// own ratio, so any other height shows up as an empty band. Only the width snaps to the
-		// grid; the height differences are absorbed by the masonry packing.
+		// Rounding the height means the tile no longer matches the window's ratio, so the
+		// thumbnail is center-cropped to fill it (see DwmThumbnail). Letting the tile keep the
+		// exact ratio instead is what leaves the grid ragged.
 		private static void Resize(WindowTile tile, IntPtr handle)
 		{
 			tile.IsMinimized = Win32.IsIconic(handle);
@@ -108,8 +112,8 @@ namespace StageManager
 			{
 				// A minimized window has no live thumbnail, so it keeps a square one-unit tile
 				// carrying nothing but its icon.
-				tile.ThumbWidth = TileWidth(1);
-				tile.ThumbHeight = TileWidth(1);
+				tile.ThumbWidth = Extent(1);
+				tile.ThumbHeight = Extent(1);
 				return;
 			}
 
@@ -121,15 +125,18 @@ namespace StageManager
 			var workArea = (double)(work.Right - work.Left) * (work.Bottom - work.Top);
 			var fill = workArea > 0 ? (double)source.Width * source.Height / workArea : 1;
 
-			var width = TileWidth(fill >= WideTileFill ? 2 : 1);
-			tile.ThumbWidth = width;
-			tile.ThumbHeight = width * source.Height / source.Width;
+			var spanWidth = fill >= WideTileFill ? 2 : 1;
+			var ratio = (double)source.Height / source.Width;
+			var spanHeight = Math.Clamp((int)Math.Round(spanWidth * ratio), 1, MaxSpanHeight);
+
+			tile.ThumbWidth = Extent(spanWidth);
+			tile.ThumbHeight = Extent(spanHeight);
 		}
 
-		// Content width of a tile spanning this many grid units, with the tile's own border
+		// Content size of a tile spanning this many grid units, with the tile's own border
 		// taken out - what the thumbnail itself gets.
-		private static double TileWidth(int span) =>
-			span * UnitWidth + (span - 1) * UnitGap - 2 * TileBorder;
+		private static double Extent(int span) =>
+			span * Unit + (span - 1) * UnitGap - 2 * TileBorder;
 
 		private void ResizeTile(IWindow window)
 		{

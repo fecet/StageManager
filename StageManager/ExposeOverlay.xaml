@@ -13,9 +13,13 @@
     SizeToContent="WidthAndHeight"
     Title="Stage"
     Name="thisWindow">
+    <!-- The tiles pave a rectangle, and this panel is its backing: one slab the grid sits on,
+         rather than tiles floating loose over the desktop. Its alpha is well above 1, so the
+         whole slab owns its pixels and clicks in the gaps between tiles land on the widget. -->
     <Border
-        Background="Transparent"
-        Padding="6">
+        Background="#59000000"
+        CornerRadius="8"
+        Padding="8">
         <ScrollViewer
             x:Name="scroll"
             Background="Transparent"
@@ -24,7 +28,8 @@
             <ItemsControl x:Name="tilesControl">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <!-- One grid unit. A tile spans one (88) or two (184, gap included),
+                        <!-- One grid unit, square. A tile spans a whole number of units in
+                             each direction: 88, or 184 with the gap folded in, and so on -
                              always including the tile's 2px border on each side. -->
                         <local:MasonryPanel
                             UnitWidth="88"

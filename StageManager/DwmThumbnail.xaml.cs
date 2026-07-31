@@ -1,4 +1,5 @@
 ﻿using StageManager.Native.Interop;
+using StageManager.Native.PInvoke;
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -158,7 +159,42 @@ namespace StageManager
 				rcDestination = thumbnailRect,
 				fSourceClientAreaOnly = true
 			};
+
+			// The tile's size is quantized to the grid, so it rarely matches the window's ratio.
+			// DWM fits the source into rcDestination at the source's own ratio, which would
+			// letterbox the difference into empty bands; cropping the source to the tile's ratio
+			// first makes the thumbnail cover the tile instead, the way a Windows tile is filled.
+			var source = Win32Helper.PreviewSourceSize(PreviewHandle);
+			if (source.Width > 0 && source.Height > 0)
+			{
+				props.rcSource = CenterCrop(source, thumbnailRect);
+				props.dwFlags |= (int)DWM_TNP.DWM_TNP_RECTSOURCE;
+			}
+
 			NativeMethods.DwmUpdateThumbnailProperties(_dwmThumbnail, ref props);
+		}
+
+		// The largest centred part of the source that has the destination's aspect ratio.
+		// Coordinates are relative to the source's client area, matching DWM_TNP_SOURCECLIENTAREAONLY.
+		private static RECT CenterCrop(System.Drawing.Size source, RECT destination)
+		{
+			var destWidth = destination.right - destination.left;
+			var destHeight = destination.bottom - destination.top;
+			if (destWidth <= 0 || destHeight <= 0)
+				return new RECT { left = 0, top = 0, right = source.Width, bottom = source.Height };
+
+			if (source.Width * (long)destHeight > destWidth * (long)source.Height)
+			{
+				// Source is the wider of the two: keep its full height, trim the sides.
+				var width = (int)Math.Round(source.Height * (double)destWidth / destHeight);
+				var left = (source.Width - width) / 2;
+				return new RECT { left = left, top = 0, right = left + width, bottom = source.Height };
+			}
+
+			// Source is the taller: keep its full width, trim top and bottom.
+			var height = (int)Math.Round(source.Width * (double)destHeight / destWidth);
+			var top = (source.Height - height) / 2;
+			return new RECT { left = 0, top = top, right = source.Width, bottom = top + height };
 		}
 	}
 }
