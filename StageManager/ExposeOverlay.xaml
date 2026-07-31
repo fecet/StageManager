@@ -24,10 +24,10 @@
             <ItemsControl x:Name="tilesControl">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <!-- ColumnWidth is the widest thumbnail (180) plus the tile's 2px
-                             border on each side; a narrower tile is centred in its column. -->
+                        <!-- One grid unit. A tile spans one (88) or two (184, gap included),
+                             always including the tile's 2px border on each side. -->
                         <local:MasonryPanel
-                            ColumnWidth="184"
+                            UnitWidth="88"
                             Gap="8"
                             MaxColumnHeight="{Binding ColumnHeightLimit, ElementName=thisWindow}"
                             MaxColumns="{Binding ColumnLimit, ElementName=thisWindow}" />
@@ -51,12 +51,39 @@
                                     </Style.Triggers>
                                 </Style>
                             </Border.Style>
-                            <Grid>
+                            <Grid Width="{Binding ThumbWidth}" Height="{Binding ThumbHeight}">
+                                <!-- A live preview, or just the app icon when the window is
+                                     minimized and DWM has no thumbnail left to mirror. -->
                                 <local:DwmThumbnail
-                                    Width="{Binding ThumbWidth}"
-                                    Height="{Binding ThumbHeight}"
                                     ThumbnailOpacity="150"
-                                    PreviewHandle="{Binding Handle}" />
+                                    PreviewHandle="{Binding Handle}">
+                                    <local:DwmThumbnail.Style>
+                                        <Style TargetType="local:DwmThumbnail">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsMinimized}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </local:DwmThumbnail.Style>
+                                </local:DwmThumbnail>
+                                <Image
+                                    Source="{Binding Icon}"
+                                    Width="40"
+                                    Height="40"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                                    <Image.Style>
+                                        <Style TargetType="Image">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsMinimized}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Image.Style>
+                                </Image>
                                 <Border
                                     Background="#B0000000"
                                     CornerRadius="4"

@@ -13,8 +13,9 @@ namespace StageManager
 		private string _title;
 		private ImageSource _icon;
 		private bool _isFocused;
-		private double _thumbWidth = 180;
-		private double _thumbHeight = 108;
+		private bool _isMinimized;
+		private double _thumbWidth = 84;
+		private double _thumbHeight = 84;
 
 		public WindowTile(IntPtr handle)
 		{
@@ -49,8 +50,23 @@ namespace StageManager
 			}
 		}
 
-		// Thumbnail width, set from how much of its monitor the window fills: a tile at the full
-		// column width belongs to a window covering its screen, a narrow one to a small window.
+		// A minimized window has no live thumbnail to mirror, so its tile shows the app icon
+		// on a square instead of a DWM preview.
+		public bool IsMinimized
+		{
+			get => _isMinimized;
+			set
+			{
+				if (_isMinimized == value)
+					return;
+
+				_isMinimized = value;
+				OnPropertyChanged(nameof(IsMinimized));
+			}
+		}
+
+		// Thumbnail width, set from how much of its monitor the window fills: a two-unit tile
+		// belongs to a window covering its screen, a one-unit tile to a small window.
 		public double ThumbWidth
 		{
 			get => _thumbWidth;

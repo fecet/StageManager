@@ -20,14 +20,15 @@ namespace StageManager
 	/// </summary>
 	public class ExposeController
 	{
-		// The widest a tile gets: the masonry column width in XAML minus the tile's 2px border
-		// on each side. A tile narrower than this is one whose window fills less of its monitor.
-		private const double MaxTileWidth = 180;
+		// The masonry grid. A tile spans one unit or two, never a fraction, so tiles line up on
+		// the grid the way Windows tiles do. Keep in sync with the MasonryPanel in XAML.
+		private const double UnitWidth = 88;
+		private const double UnitGap = 8;
+		private const double TileBorder = 2; // the tile Border's BorderThickness, per side
 
-		// The narrowest a tile gets, as a fraction of MaxTileWidth. A tile has to stay legible
-		// however small its window is, so the scale is remapped into [MinTileScale, 1] rather
-		// than clamped at the floor, which would flatten every small window onto one size.
-		private const double MinTileScale = 0.5;
+		// A window filling at least this much of its monitor earns the two-unit tile. Measured
+		// as an area fraction, so the threshold is half the screen in each dimension.
+		private const double WideTileFill = 0.25;
 
 		private readonly WindowsManager _windowsManager;
 		private readonly ObservableCollection<WindowTile> _tiles = new ObservableCollection<WindowTile>();
@@ -91,39 +92,44 @@ namespace StageManager
 			_tiles.Add(tile);
 		}
 
-		// A tile carries two independent facts about its window: the aspect ratio as its shape,
-		// and how much of its own monitor the window fills as its width. Measuring the fill
+		// A tile carries two facts about its window: how much of its own monitor the window
+		// fills picks the tile's span, and the aspect ratio gives its height. Measuring the fill
 		// against the monitor rather than in raw pixels is what makes the two boxes comparable -
 		// a maximized window reads the same whether it sits on the GPD's 1080p panel or on a 4K
 		// screen, and a small tool window stays small on either.
 		//
-		// The ratio is deliberately unclamped: DWM letterboxes the thumbnail at the source's own
-		// ratio, so any other height shows up as an empty band. Extreme ratios are absorbed by
-		// the masonry packing instead.
+		// The height is deliberately unquantized: DWM letterboxes the thumbnail at the source's
+		// own ratio, so any other height shows up as an empty band. Only the width snaps to the
+		// grid; the height differences are absorbed by the masonry packing.
 		private static void Resize(WindowTile tile, IntPtr handle)
 		{
-			var source = Win32Helper.PreviewSourceSize(handle);
-			if (source.Width <= 0 || source.Height <= 0)
+			tile.IsMinimized = Win32.IsIconic(handle);
+			if (tile.IsMinimized)
 			{
-				// No usable geometry at all (a minimized window whose placement is empty too).
-				tile.ThumbWidth = MaxTileWidth;
-				tile.ThumbHeight = MaxTileWidth * 9.0 / 16.0;
+				// A minimized window has no live thumbnail, so it keeps a square one-unit tile
+				// carrying nothing but its icon.
+				tile.ThumbWidth = TileWidth(1);
+				tile.ThumbHeight = TileWidth(1);
 				return;
 			}
 
+			var source = Win32Helper.PreviewSourceSize(handle);
+			if (source.Width <= 0 || source.Height <= 0)
+				return; // nothing to derive a shape from; leave the tile at the size it has
+
 			var work = Win32.GetWorkArea(handle);
 			var workArea = (double)(work.Right - work.Left) * (work.Bottom - work.Top);
-			var fill = workArea > 0
-				? Math.Min(1, (double)source.Width * source.Height / workArea)
-				: 1;
+			var fill = workArea > 0 ? (double)source.Width * source.Height / workArea : 1;
 
-			// Square-root turns the area fraction back into a linear one, so a window covering a
-			// quarter of its screen gets half the width rather than a quarter.
-			var scale = MinTileScale + (1 - MinTileScale) * Math.Sqrt(fill);
-
-			tile.ThumbWidth = MaxTileWidth * scale;
-			tile.ThumbHeight = tile.ThumbWidth * source.Height / source.Width;
+			var width = TileWidth(fill >= WideTileFill ? 2 : 1);
+			tile.ThumbWidth = width;
+			tile.ThumbHeight = width * source.Height / source.Width;
 		}
+
+		// Content width of a tile spanning this many grid units, with the tile's own border
+		// taken out - what the thumbnail itself gets.
+		private static double TileWidth(int span) =>
+			span * UnitWidth + (span - 1) * UnitGap - 2 * TileBorder;
 
 		private void ResizeTile(IWindow window)
 		{
