@@ -127,6 +127,8 @@ namespace StageManager
 			// Report the rectangle the tiles actually occupy, not the width they were packed
 			// into: the chosen step usually overshoots, and the difference would be dead margin.
 			_packed = Pack(best);
+			System.IO.File.AppendAllText(@"C:\Relay\sm-diag.txt",
+				$"measure: n={InternalChildren.Count} widest={widest:F0} wLimit={WidthLimit:F0} hLimit={HeightLimit:F0} aspect={TargetAspect:F2} best={best:F0} packed={_packed.Width:F0}x{_packed.Height:F0}\n");
 			return _packed;
 		}
 

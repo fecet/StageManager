@@ -110,6 +110,8 @@ namespace StageManager
 			ContentHeightLimit = MaxHeight - 2 * ContentPadding;
 			ContentWidthLimit = workWidth * MaxWidthFraction - 2 * ContentPadding;
 			ContentAspect = workWidth / workHeight;
+			System.IO.File.AppendAllText(@"C:\Relay\sm-diag.txt",
+				$"limits: scaling={scaling} work={_work.Right - _work.Left}x{_work.Bottom - _work.Top} workDip={workWidth:F0}x{workHeight:F0} wLimit={ContentWidthLimit:F0} hLimit={ContentHeightLimit:F0} aspect={ContentAspect:F2}\n");
 		}
 
 		private IntPtr Handle => new WindowInteropHelper(this).Handle;
