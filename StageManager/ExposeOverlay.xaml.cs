@@ -22,8 +22,6 @@ namespace StageManager
 		private const double EdgeGap = 12;
 		private const byte BaseThumbOpacity = 235; // keep in sync with the DwmThumbnail in XAML
 		private const double ContentPadding = 8; // the panel Border around the ScrollViewer
-		private const double UnitWidth = 88;    // keep in sync with the MasonryPanel in XAML
-		private const double ColumnGap = 8;     // keep in sync with the MasonryPanel in XAML
 		private const double MaxWidthFraction = 0.5; // widget may claim at most half the work area
 		private Win32.Rect _work; // target monitor work area, physical px
 
@@ -31,6 +29,7 @@ namespace StageManager
 		{
 			InitializeComponent();
 			scroll.ScrollChanged += (_, _) => UpdateFade();
+			PreviewMouseWheel += OnMouseWheel;
 			SizeChanged += (_, _) => { AnchorToMonitor(); UpdateFade(); };
 			Loaded += (_, _) =>
 			{
@@ -40,26 +39,26 @@ namespace StageManager
 			};
 		}
 
-		/// <summary>Height a masonry column may reach before another column opens (DIP).</summary>
-		public static readonly DependencyProperty ColumnHeightLimitProperty = DependencyProperty.Register(
-			nameof(ColumnHeightLimit), typeof(double), typeof(ExposeOverlay),
+		/// <summary>Height the packed tiles may reach before the masonry widens (DIP).</summary>
+		public static readonly DependencyProperty ContentHeightLimitProperty = DependencyProperty.Register(
+			nameof(ContentHeightLimit), typeof(double), typeof(ExposeOverlay),
 			new PropertyMetadata(double.PositiveInfinity));
 
-		public double ColumnHeightLimit
+		public double ContentHeightLimit
 		{
-			get => (double)GetValue(ColumnHeightLimitProperty);
-			set => SetValue(ColumnHeightLimitProperty, value);
+			get => (double)GetValue(ContentHeightLimitProperty);
+			set => SetValue(ContentHeightLimitProperty, value);
 		}
 
-		/// <summary>How many masonry columns the work area's width can afford.</summary>
-		public static readonly DependencyProperty ColumnLimitProperty = DependencyProperty.Register(
-			nameof(ColumnLimit), typeof(int), typeof(ExposeOverlay),
-			new PropertyMetadata(1));
+		/// <summary>Width the masonry may grow to (DIP).</summary>
+		public static readonly DependencyProperty ContentWidthLimitProperty = DependencyProperty.Register(
+			nameof(ContentWidthLimit), typeof(double), typeof(ExposeOverlay),
+			new PropertyMetadata(double.PositiveInfinity));
 
-		public int ColumnLimit
+		public double ContentWidthLimit
 		{
-			get => (int)GetValue(ColumnLimitProperty);
-			set => SetValue(ColumnLimitProperty, value);
+			get => (double)GetValue(ContentWidthLimitProperty);
+			set => SetValue(ContentWidthLimitProperty, value);
 		}
 
 		// Translate the monitor work area into the DIP budget the masonry may use. Done at
@@ -72,17 +71,27 @@ namespace StageManager
 				return;
 
 			MaxHeight = (_work.Bottom - _work.Top) / dpi.DpiScaleY - 2 * EdgeGap;
-			ColumnHeightLimit = MaxHeight - 2 * ContentPadding;
-
-			// n grid units span n * UnitWidth + (n - 1) * ColumnGap.
-			var widthBudget = (_work.Right - _work.Left) / dpi.DpiScaleX * MaxWidthFraction;
-			ColumnLimit = Math.Max(1, (int)((widthBudget + ColumnGap) / (UnitWidth + ColumnGap)));
+			ContentHeightLimit = MaxHeight - 2 * ContentPadding;
+			ContentWidthLimit = (_work.Right - _work.Left) / dpi.DpiScaleX * MaxWidthFraction
+				- 2 * ContentPadding;
 		}
 
 		private IntPtr Handle => new WindowInteropHelper(this).Handle;
 
 		/// <summary>Raised when a tile is clicked; arg is the clicked tile's view-model.</summary>
 		public event EventHandler<WindowTile> TileClicked;
+
+		/// <summary>Raised on wheel notches over the widget; arg is signed notches, up positive.</summary>
+		public event EventHandler<int> ScaleStepped;
+
+		// The wheel zooms rather than scrolls. Scrolling a switcher is the wrong gesture anyway:
+		// the point is to see every window at once, so shrinking until they fit beats paging
+		// through them. Handled so the ScrollViewer underneath does not also act on the notch.
+		private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+		{
+			ScaleStepped?.Invoke(this, e.Delta / Mouse.MouseWheelDeltaForOneLine);
+			e.Handled = true;
+		}
 
 		/// <summary>Set the monitor (work area in physical px) this widget lives on.</summary>
 		public void SetMonitor(Win32.Rect work) => _work = work;

@@ -6,31 +6,20 @@ using System.Windows.Controls;
 namespace StageManager
 {
 	/// <summary>
-	/// Masonry layout over a grid of <see cref="UnitWidth"/> columns. Tiles are sized freely by
-	/// their owner; the grid only bounds the packing, so each tile occupies as many adjacent
-	/// columns as its width needs and is centred in them. It goes into the lowest run of columns
-	/// that can hold it, which is what keeps a wide tile from being laid over a neighbour.
+	/// Packs freely-sized tiles into the smallest rectangle they fit, each tile landing at the
+	/// lowest free spot that can hold it. Nothing is snapped to a column: a tile occupies exactly
+	/// its own width, so a narrow one does not reserve a column's worth of space beside it and
+	/// the only gaps left are the deliberate <see cref="Gap"/> between tiles.
 	///
-	/// Column count grows only as needed: the panel starts at the widest tile's span and opens
-	/// another column whenever the tallest one would exceed <see cref="MaxColumnHeight"/>, up to
-	/// <see cref="MaxColumns"/>. Tile heights are their windows' true aspect ratios, so they stay
+	/// The width grows only as needed. The panel starts at its widest tile and widens by
+	/// <see cref="WidthStep"/> until the packed height fits <see cref="HeightLimit"/>, up to
+	/// <see cref="WidthLimit"/>. Tile heights are their windows' true aspect ratios, so they stay
 	/// ragged and the packing absorbs the difference.
 	/// </summary>
 	public class MasonryPanel : Panel
 	{
-		private int _columns = 1;
 		private readonly List<Point> _origins = new List<Point>();
-
-		/// <summary>Width of one grid unit. A tile spans a whole number of these.</summary>
-		public static readonly DependencyProperty UnitWidthProperty = DependencyProperty.Register(
-			nameof(UnitWidth), typeof(double), typeof(MasonryPanel),
-			new FrameworkPropertyMetadata(88d, FrameworkPropertyMetadataOptions.AffectsMeasure));
-
-		public double UnitWidth
-		{
-			get => (double)GetValue(UnitWidthProperty);
-			set => SetValue(UnitWidthProperty, value);
-		}
+		private Size _packed;
 
 		public static readonly DependencyProperty GapProperty = DependencyProperty.Register(
 			nameof(Gap), typeof(double), typeof(MasonryPanel),
@@ -42,60 +31,59 @@ namespace StageManager
 			set => SetValue(GapProperty, value);
 		}
 
-		// The height a single column may reach before another column is opened. The panel
-		// lives in a ScrollViewer, which measures with infinite height, so the usable
-		// height cannot be read from availableSize and is supplied by the owning window.
-		public static readonly DependencyProperty MaxColumnHeightProperty = DependencyProperty.Register(
-			nameof(MaxColumnHeight), typeof(double), typeof(MasonryPanel),
-			new FrameworkPropertyMetadata(double.PositiveInfinity, FrameworkPropertyMetadataOptions.AffectsMeasure));
+		/// <summary>How much wider the panel gets on each attempt to make the content fit.</summary>
+		public static readonly DependencyProperty WidthStepProperty = DependencyProperty.Register(
+			nameof(WidthStep), typeof(double), typeof(MasonryPanel),
+			new FrameworkPropertyMetadata(96d, FrameworkPropertyMetadataOptions.AffectsMeasure));
 
-		public double MaxColumnHeight
+		public double WidthStep
 		{
-			get => (double)GetValue(MaxColumnHeightProperty);
-			set => SetValue(MaxColumnHeightProperty, value);
+			get => (double)GetValue(WidthStepProperty);
+			set => SetValue(WidthStepProperty, value);
 		}
 
-		/// <summary>Most grid units the panel may open, not most tiles per row.</summary>
-		public static readonly DependencyProperty MaxColumnsProperty = DependencyProperty.Register(
-			nameof(MaxColumns), typeof(int), typeof(MasonryPanel),
-			new FrameworkPropertyMetadata(6, FrameworkPropertyMetadataOptions.AffectsMeasure));
+		// The height the content may reach before the panel is widened instead. The panel lives
+		// in a ScrollViewer, which measures with infinite height, so the usable height cannot be
+		// read from availableSize and is supplied by the owning window.
+		public static readonly DependencyProperty HeightLimitProperty = DependencyProperty.Register(
+			nameof(HeightLimit), typeof(double), typeof(MasonryPanel),
+			new FrameworkPropertyMetadata(double.PositiveInfinity, FrameworkPropertyMetadataOptions.AffectsMeasure));
 
-		public int MaxColumns
+		public double HeightLimit
 		{
-			get => (int)GetValue(MaxColumnsProperty);
-			set => SetValue(MaxColumnsProperty, value);
+			get => (double)GetValue(HeightLimitProperty);
+			set => SetValue(HeightLimitProperty, value);
+		}
+
+		public static readonly DependencyProperty WidthLimitProperty = DependencyProperty.Register(
+			nameof(WidthLimit), typeof(double), typeof(MasonryPanel),
+			new FrameworkPropertyMetadata(double.PositiveInfinity, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+		public double WidthLimit
+		{
+			get => (double)GetValue(WidthLimitProperty);
+			set => SetValue(WidthLimitProperty, value);
 		}
 
 		protected override Size MeasureOverride(Size availableSize)
 		{
-			var maxColumns = Math.Max(1, MaxColumns);
-			var widest = 0;
-
+			var widest = 0d;
 			foreach (UIElement child in InternalChildren)
 			{
-				child.Measure(new Size(Extent(maxColumns), double.PositiveInfinity));
-				widest = Math.Max(widest, SpanOf(child));
+				child.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+				widest = Math.Max(widest, child.DesiredSize.Width);
 			}
 
-			// Start wide enough for the widest tile, then open columns until the tallest one fits.
-			_columns = Math.Min(maxColumns, Math.Max(1, widest));
-			while (_columns < maxColumns && Pack(_columns) > MaxColumnHeight)
-				_columns++;
+			var limit = Math.Max(widest, WidthLimit);
+			var width = widest;
+			while (width < limit && Pack(width).Height > HeightLimit)
+				width = Math.Min(limit, width + WidthStep);
 
-			var height = Pack(_columns);
-			return new Size(Extent(_columns), height);
+			// Report the rectangle the tiles actually occupy, not the width they were packed
+			// into: the last step usually overshoots, and the difference would be dead margin.
+			_packed = Pack(width);
+			return _packed;
 		}
-
-		/// <summary>Width covered by this many units, gaps between them included.</summary>
-		private double Extent(int units) => units * UnitWidth + (units - 1) * Gap;
-
-		/// <summary>
-		/// How many grid units a tile occupies: the fewest whose extent covers the width it
-		/// asked for. Tile widths are continuous, so this rounds up rather than to nearest —
-		/// a tile must never be laid over a column its neighbour also holds.
-		/// </summary>
-		private int SpanOf(UIElement child) =>
-			Math.Max(1, (int)Math.Ceiling((child.DesiredSize.Width + Gap) / (UnitWidth + Gap) - 1e-6));
 
 		protected override Size ArrangeOverride(Size finalSize)
 		{
@@ -107,63 +95,59 @@ namespace StageManager
 			return finalSize;
 		}
 
-		// Place every child at the lowest run of columns its span fits into, recording its
-		// origin, and return the height of the tallest column. A multi-unit tile straddles
-		// that many columns and pushes all of them down, and a tile narrower than the run it
-		// occupies is centred in it.
-		private double Pack(int columns)
+		// Place every child at the lowest point it fits, leftmost among ties, and return the
+		// extent of the result. Candidate positions are the left edge and the right edge of
+		// every tile already placed: an optimal packing only ever butts a tile against one of
+		// those, so there is no need to scan every offset.
+		private Size Pack(double width)
 		{
-			var heights = new double[columns];
 			_origins.Clear();
+			var placed = new List<Rect>();
+			var extent = new Size(0, 0);
 
 			foreach (UIElement child in InternalChildren)
 			{
-				var span = Math.Min(columns, SpanOf(child));
-				var start = LowestRun(heights, span);
-				var top = RunTop(heights, start, span);
-				var inset = Math.Max(0, Extent(span) - child.DesiredSize.Width) / 2;
+				var size = child.DesiredSize;
+				var tileWidth = Math.Min(size.Width, width);
+				var spot = LowestSpot(placed, width, tileWidth);
 
-				_origins.Add(new Point(start * (UnitWidth + Gap) + inset, top));
-
-				var bottom = top + child.DesiredSize.Height + Gap;
-				for (int c = start; c < start + span; c++)
-					heights[c] = bottom;
+				_origins.Add(spot);
+				placed.Add(new Rect(spot, new Size(tileWidth, size.Height)));
+				extent.Width = Math.Max(extent.Width, spot.X + tileWidth);
+				extent.Height = Math.Max(extent.Height, spot.Y + size.Height);
 			}
 
-			var tallest = 0d;
-			foreach (var height in heights)
-				tallest = Math.Max(tallest, height);
-
-			// The trailing gap belongs between tiles, not below the last one.
-			return Math.Max(0, tallest - Gap);
+			return extent;
 		}
 
-		// First column of the run of `span` adjacent columns whose top is lowest. A tile cannot
-		// overlap the one above it in any column it straddles, so the run's top is the highest
-		// of them.
-		private static int LowestRun(double[] heights, int span)
+		private Point LowestSpot(List<Rect> placed, double width, double tileWidth)
 		{
-			var best = 0;
-			var lowest = double.MaxValue;
+			var best = new Point(0, TopAt(placed, 0, tileWidth));
 
-			for (int start = 0; start + span <= heights.Length; start++)
+			foreach (var rect in placed)
 			{
-				var top = RunTop(heights, start, span);
-				if (top < lowest)
-				{
-					lowest = top;
-					best = start;
-				}
+				var x = rect.Right + Gap;
+				if (x + tileWidth > width + 0.01)
+					continue;
+
+				var y = TopAt(placed, x, tileWidth);
+				if (y < best.Y || (y == best.Y && x < best.X))
+					best = new Point(x, y);
 			}
 
 			return best;
 		}
 
-		private static double RunTop(double[] heights, int start, int span)
+		// The lowest y at which a tile of this width can sit at this x without touching one
+		// already placed.
+		private double TopAt(List<Rect> placed, double x, double tileWidth)
 		{
 			var top = 0d;
-			for (int c = start; c < start + span; c++)
-				top = Math.Max(top, heights[c]);
+
+			foreach (var rect in placed)
+				if (rect.Left < x + tileWidth && x < rect.Right)
+					top = Math.Max(top, rect.Bottom + Gap);
+
 			return top;
 		}
 	}

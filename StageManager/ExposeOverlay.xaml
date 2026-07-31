@@ -29,14 +29,11 @@
             <ItemsControl x:Name="tilesControl">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <!-- One grid unit, square. A tile spans a whole number of units in
-                             each direction: 88, or 184 with the gap folded in, and so on -
-                             always including the tile's 2px border on each side. -->
                         <local:MasonryPanel
-                            UnitWidth="88"
                             Gap="8"
-                            MaxColumnHeight="{Binding ColumnHeightLimit, ElementName=thisWindow}"
-                            MaxColumns="{Binding ColumnLimit, ElementName=thisWindow}" />
+                            WidthStep="96"
+                            HeightLimit="{Binding ContentHeightLimit, ElementName=thisWindow}"
+                            WidthLimit="{Binding ContentWidthLimit, ElementName=thisWindow}" />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>

@@ -20,23 +20,21 @@ namespace StageManager
 	/// </summary>
 	public class ExposeController
 	{
-		// The tile grid: a square unit, and a tile spanning a whole number of units in each
-		// direction. Keep in sync with the MasonryPanel in XAML.
-		private const double Unit = 88;
-		private const double UnitGap = 8;
-		private const double TileBorder = 2; // the tile Border's BorderThickness, per side
-
-		// A tile covering its whole monitor is this big. Three units across, so a full-size
-		// tile fills its columns exactly. It also bounds the other direction, keeping a
-		// full-screen portrait window from standing twice as tall as a landscape one.
-		private const double MaxTileSize = 3 * Unit + 2 * UnitGap - 2 * TileBorder;
+		// Size of a tile whose window covers its whole monitor, at scale 1. It bounds both
+		// directions, so a full-screen portrait window does not stand twice as tall as a
+		// landscape one.
+		private const double MaxTileSize = 276;
 
 		// Smallest a tile's longer side may get, so a window still leaves something legible
 		// to click. A vertical taskbar is a few pixels wide at true scale.
 		private const double MinTileSize = 56;
 
+		// A minimized window has no thumbnail to size, so its tile is a fixed square.
+		private const double IconTileSize = 84;
+
 		private readonly WindowsManager _windowsManager;
 		private readonly ObservableCollection<WindowTile> _tiles = new ObservableCollection<WindowTile>();
+		private double _scale = TileScale.Load();
 
 		public ExposeController(WindowsManager windowsManager)
 		{
@@ -48,6 +46,22 @@ namespace StageManager
 		{
 			overlay.SetTiles(_tiles);
 			overlay.TileClicked += OnTileClicked;
+			overlay.ScaleStepped += OnScaleStepped;
+		}
+
+		// Resize every tile around the new scale and remember it. The masonry re-packs itself
+		// off the tiles' changed sizes, and the widget follows because it is sized to content.
+		private void OnScaleStepped(object sender, int steps)
+		{
+			var scale = TileScale.Step(_scale, steps);
+			if (scale == _scale)
+				return;
+
+			_scale = scale;
+			foreach (var tile in _tiles)
+				Resize(tile, tile.Handle);
+
+			TileScale.Save(scale);
 		}
 
 		public void Start()
@@ -108,15 +122,14 @@ namespace StageManager
 		//
 		// The grid only bounds the packing (see MasonryPanel), and the panel behind the tiles
 		// is what makes the whole widget a rectangle; the tiles themselves do not pave one.
-		private static void Resize(WindowTile tile, IntPtr handle)
+		private void Resize(WindowTile tile, IntPtr handle)
 		{
 			tile.IsMinimized = Win32.IsIconic(handle);
 			if (tile.IsMinimized)
 			{
-				// A minimized window has no live thumbnail, so it keeps a square one-unit tile
-				// carrying nothing but its icon.
-				tile.ThumbWidth = Extent(1);
-				tile.ThumbHeight = Extent(1);
+				// A minimized window has no live thumbnail, so it keeps a square icon tile.
+				tile.ThumbWidth = IconTileSize * _scale;
+				tile.ThumbHeight = IconTileSize * _scale;
 				return;
 			}
 
@@ -129,7 +142,8 @@ namespace StageManager
 			if (workWidth <= 0)
 				return;
 
-			var scale = MaxTileSize / workWidth;
+			var maxSize = MaxTileSize * _scale;
+			var scale = maxSize / workWidth;
 			var width = source.Width * scale;
 			var height = source.Height * scale;
 
@@ -137,14 +151,14 @@ namespace StageManager
 			// ceiling one tall window (a vertical taskbar runs about 1:18) would tower over the
 			// grid and drag the widget to its height limit; without the floor that same window
 			// would be a few pixels wide.
-			var over = height / MaxTileSize;
+			var over = height / maxSize;
 			if (over > 1)
 			{
 				width /= over;
-				height = MaxTileSize;
+				height = maxSize;
 			}
 
-			var under = MinTileSize / Math.Max(width, height);
+			var under = MinTileSize * _scale / Math.Max(width, height);
 			if (under > 1)
 			{
 				width *= under;
@@ -154,11 +168,6 @@ namespace StageManager
 			tile.ThumbWidth = width;
 			tile.ThumbHeight = height;
 		}
-
-		// Content size of a tile spanning this many grid units, with the tile's own border
-		// taken out - what the thumbnail itself gets.
-		private static double Extent(int span) =>
-			span * Unit + (span - 1) * UnitGap - 2 * TileBorder;
 
 		private void ResizeTile(IWindow window)
 		{
