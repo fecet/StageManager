@@ -29,12 +29,11 @@
             <ItemsControl x:Name="tilesControl">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
+                        <!-- Limits are pushed in from code, not bound: an ItemsPanelTemplate
+                             gets its own name scope, so ElementName never resolves here. -->
                         <local:MasonryPanel
                             Gap="8"
-                            WidthStep="96"
-                            HeightLimit="{Binding ContentHeightLimit, ElementName=thisWindow}"
-                            WidthLimit="{Binding ContentWidthLimit, ElementName=thisWindow}"
-                            TargetAspect="{Binding ContentAspect, ElementName=thisWindow}" />
+                            WidthStep="96" />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>

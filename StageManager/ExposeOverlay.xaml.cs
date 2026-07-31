@@ -2,6 +2,7 @@ using StageManager.Native.PInvoke;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -30,7 +31,9 @@ namespace StageManager
 			InitializeComponent();
 			scroll.ScrollChanged += (_, _) => UpdateFade();
 			PreviewMouseWheel += OnMouseWheel;
-			SizeChanged += (_, _) => { AnchorToMonitor(); UpdateFade(); };
+			// Also on SizeChanged: the panel does not exist yet at Loaded on a cold start, so the
+			// limits have to be pushed again once the template has produced it.
+			SizeChanged += (_, _) => { ApplyWorkAreaLimits(); AnchorToMonitor(); UpdateFade(); };
 			Loaded += (_, _) =>
 			{
 				ApplyWorkAreaLimits();
@@ -96,7 +99,15 @@ namespace StageManager
 			}
 		}
 
-		// Translate the monitor work area into the DIP budget the masonry may use.
+		// The panel the tiles are laid out in. It lives inside an ItemsPanelTemplate, which has
+		// its own name scope, so it can only be reached once the template has been applied.
+		private MasonryPanel _masonry;
+
+		private MasonryPanel Masonry => _masonry ??= FindVisualChildren<MasonryPanel>(this).FirstOrDefault();
+
+		// Translate the monitor work area into the DIP budget the masonry may use, and push it
+		// into the panel. Pushing rather than binding because an ElementName binding cannot
+		// cross out of the ItemsPanelTemplate's name scope to reach this window.
 		private void ApplyWorkAreaLimits()
 		{
 			var scaling = Scaling;
@@ -110,8 +121,13 @@ namespace StageManager
 			ContentHeightLimit = MaxHeight - 2 * ContentPadding;
 			ContentWidthLimit = workWidth * MaxWidthFraction - 2 * ContentPadding;
 			ContentAspect = workWidth / workHeight;
-			System.IO.File.AppendAllText(@"C:\Relay\sm-diag.txt",
-				$"limits: scaling={scaling} work={_work.Right - _work.Left}x{_work.Bottom - _work.Top} workDip={workWidth:F0}x{workHeight:F0} wLimit={ContentWidthLimit:F0} hLimit={ContentHeightLimit:F0} aspect={ContentAspect:F2}\n");
+
+			if (Masonry is MasonryPanel masonry)
+			{
+				masonry.HeightLimit = ContentHeightLimit;
+				masonry.WidthLimit = ContentWidthLimit;
+				masonry.TargetAspect = ContentAspect;
+			}
 		}
 
 		private IntPtr Handle => new WindowInteropHelper(this).Handle;
