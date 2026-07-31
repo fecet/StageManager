@@ -69,5 +69,38 @@ namespace StageManager.Native.PInvoke
         {
             FocusStealer.Steal(hWnd);
         }
+
+        /// <summary>
+        /// The size DWM composes into a thumbnail of this window, which is what a preview's
+        /// aspect ratio has to be derived from. Empty when the window reports no usable rect.
+        /// </summary>
+        /// <remarks>
+        /// The source is the client area, because DwmThumbnail registers with
+        /// DWM_TNP_SOURCECLIENTAREAONLY; the window rect would add the caption and the
+        /// invisible resize border, and DWM letterboxes any such surplus into empty bands.
+        ///
+        /// A minimized window reports the iconic placeholder instead of its own geometry -
+        /// GetWindowRect gives every one of them the same rect (391x61 at 175% scaling) and
+        /// GetClientRect can collapse to 0x0 - so its size comes from the restored placement,
+        /// which is the geometry the cached frame DWM still draws was captured at.
+        /// </remarks>
+        public static System.Drawing.Size PreviewSourceSize(IntPtr hwnd)
+        {
+            var rect = new Win32.Rect();
+
+            if (Win32.IsIconic(hwnd))
+            {
+                var placement = new Win32.WindowPlacement();
+                placement.Length = Marshal.SizeOf<Win32.WindowPlacement>();
+                if (Win32.GetWindowPlacement(hwnd, ref placement))
+                    rect = placement.NormalPosition;
+            }
+            else
+            {
+                Win32.GetClientRect(hwnd, ref rect);
+            }
+
+            return new System.Drawing.Size(rect.Right - rect.Left, rect.Bottom - rect.Top);
+        }
     }
 }

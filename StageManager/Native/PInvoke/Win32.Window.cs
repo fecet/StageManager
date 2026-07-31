@@ -45,6 +45,30 @@ namespace StageManager.Native.PInvoke
         [DllImport("user32.dll")]
         public static extern bool GetWindowRect(IntPtr hwnd, ref Rect rectangle);
 
+        [DllImport("user32.dll")]
+        public static extern bool GetClientRect(IntPtr hwnd, ref Rect rectangle);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct Point
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct WindowPlacement
+        {
+            public int Length;
+            public int Flags;
+            public int ShowCmd;
+            public Point MinPosition;
+            public Point MaxPosition;
+            public Rect NormalPosition;
+        }
+
+        [DllImport("user32.dll")]
+        public static extern bool GetWindowPlacement(IntPtr hwnd, ref WindowPlacement placement);
+
         [Flags()]
         public enum SetWindowPosFlags : uint
         {

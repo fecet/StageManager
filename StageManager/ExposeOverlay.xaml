@@ -24,8 +24,8 @@
             <ItemsControl x:Name="tilesControl">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <!-- ColumnWidth is the 180 thumbnail plus the tile's 2px border on
-                             each side, so a tile occupies exactly one column. -->
+                        <!-- ColumnWidth is the widest thumbnail (180) plus the tile's 2px
+                             border on each side; a narrower tile is centred in its column. -->
                         <local:MasonryPanel
                             ColumnWidth="184"
                             Gap="8"
@@ -53,7 +53,7 @@
                             </Border.Style>
                             <Grid>
                                 <local:DwmThumbnail
-                                    Width="180"
+                                    Width="{Binding ThumbWidth}"
                                     Height="{Binding ThumbHeight}"
                                     ThumbnailOpacity="150"
                                     PreviewHandle="{Binding Handle}" />
@@ -62,7 +62,7 @@
                                     CornerRadius="4"
                                     Padding="4,2"
                                     Margin="0,4,0,0"
-                                    MaxWidth="172"
+                                    MaxWidth="{Binding LabelMaxWidth}"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Top">
                                     <StackPanel Orientation="Horizontal">

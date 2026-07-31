@@ -1,4 +1,5 @@
 using StageManager.Native;
+using StageManager.Native.PInvoke;
 using StageManager.Native.Window;
 using System;
 using System.Collections.ObjectModel;
@@ -19,7 +20,14 @@ namespace StageManager
 	/// </summary>
 	public class ExposeController
 	{
-		private const double TileWidth = 180; // keep in sync with the DwmThumbnail width in XAML
+		// The widest a tile gets: the masonry column width in XAML minus the tile's 2px border
+		// on each side. A tile narrower than this is one whose window fills less of its monitor.
+		private const double MaxTileWidth = 180;
+
+		// The narrowest a tile gets, as a fraction of MaxTileWidth. A tile has to stay legible
+		// however small its window is, so the scale is remapped into [MinTileScale, 1] rather
+		// than clamped at the floor, which would flatten every small window onto one size.
+		private const double MinTileScale = 0.5;
 
 		private readonly WindowsManager _windowsManager;
 		private readonly ObservableCollection<WindowTile> _tiles = new ObservableCollection<WindowTile>();
@@ -51,14 +59,14 @@ namespace StageManager
 
 		private void OnWindowDestroyed(IWindow window) => Dispatch(() => RemoveTile(window.Handle));
 
-		// Refresh the aspect on every update, not just on drag: MoveStart/MoveEnd only fire for
-		// mouse-driven move/resize, so maximize, snap, restore and app-driven resizes would
-		// otherwise leave the tile stuck at the size the window had when its tile was created.
+		// Resize on every update, not just on drag: MoveStart/MoveEnd only fire for mouse-driven
+		// move/resize, so maximize, snap, restore and app-driven resizes would otherwise leave
+		// the tile stuck at the size the window had when its tile was created.
 		private void OnWindowUpdated(IWindow window, WindowUpdateType type)
 		{
 			Dispatch(() =>
 			{
-				UpdateAspect(window);
+				ResizeTile(window);
 				if (type == WindowUpdateType.Foreground)
 					SetFocused(window.Handle);
 			});
@@ -73,33 +81,54 @@ namespace StageManager
 			if (_tiles.Any(t => t.Handle == window.Handle))
 				return;
 
-			_tiles.Add(new WindowTile(window.Handle)
+			var tile = new WindowTile(window.Handle)
 			{
 				Title = window.Title,
 				Icon = ExtractIcon(window),
-				IsFocused = window.IsFocused,
-				ThumbHeight = ThumbHeightFor(window)
-			});
+				IsFocused = window.IsFocused
+			};
+			Resize(tile, window.Handle);
+			_tiles.Add(tile);
 		}
 
-		// Thumbnail height for the fixed column width, from the window's real aspect ratio.
-		// Deliberately unclamped: DWM letterboxes the thumbnail into the tile at the source
-		// window's own ratio, so any height that is not the true ratio shows up as an empty
-		// band. Extreme ratios are absorbed by the masonry packing instead.
-		// A minimized/unknown window has no usable rect, so fall back to 16:9.
-		private static double ThumbHeightFor(IWindow window)
+		// A tile carries two independent facts about its window: the aspect ratio as its shape,
+		// and how much of its own monitor the window fills as its width. Measuring the fill
+		// against the monitor rather than in raw pixels is what makes the two boxes comparable -
+		// a maximized window reads the same whether it sits on the GPD's 1080p panel or on a 4K
+		// screen, and a small tool window stays small on either.
+		//
+		// The ratio is deliberately unclamped: DWM letterboxes the thumbnail at the source's own
+		// ratio, so any other height shows up as an empty band. Extreme ratios are absorbed by
+		// the masonry packing instead.
+		private static void Resize(WindowTile tile, IntPtr handle)
 		{
-			var location = window.Location;
-			if (location is null || location.Width <= 0 || location.Height <= 0)
-				return TileWidth * 9.0 / 16.0;
+			var source = Win32Helper.PreviewSourceSize(handle);
+			if (source.Width <= 0 || source.Height <= 0)
+			{
+				// No usable geometry at all (a minimized window whose placement is empty too).
+				tile.ThumbWidth = MaxTileWidth;
+				tile.ThumbHeight = MaxTileWidth * 9.0 / 16.0;
+				return;
+			}
 
-			return TileWidth * location.Height / location.Width;
+			var work = Win32.GetWorkArea(handle);
+			var workArea = (double)(work.Right - work.Left) * (work.Bottom - work.Top);
+			var fill = workArea > 0
+				? Math.Min(1, (double)source.Width * source.Height / workArea)
+				: 1;
+
+			// Square-root turns the area fraction back into a linear one, so a window covering a
+			// quarter of its screen gets half the width rather than a quarter.
+			var scale = MinTileScale + (1 - MinTileScale) * Math.Sqrt(fill);
+
+			tile.ThumbWidth = MaxTileWidth * scale;
+			tile.ThumbHeight = tile.ThumbWidth * source.Height / source.Width;
 		}
 
-		private void UpdateAspect(IWindow window)
+		private void ResizeTile(IWindow window)
 		{
 			if (_tiles.FirstOrDefault(t => t.Handle == window.Handle) is WindowTile tile)
-				tile.ThumbHeight = ThumbHeightFor(window);
+				Resize(tile, window.Handle);
 		}
 
 		private void RemoveTile(IntPtr handle)

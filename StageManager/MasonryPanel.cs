@@ -7,14 +7,15 @@ namespace StageManager
 {
 	/// <summary>
 	/// Masonry layout for the exposé tiles: fixed column width, each tile keeping its own
-	/// natural height, packed into the shortest column. Column count grows only as needed —
-	/// the panel packs into one column first and adds another whenever the tallest column
-	/// would exceed <see cref="MaxColumnHeight"/>, up to <see cref="MaxColumns"/>.
+	/// natural size and centred in its column, packed into the shortest column. Column count
+	/// grows only as needed — the panel packs into one column first and adds another whenever
+	/// the tallest column would exceed <see cref="MaxColumnHeight"/>, up to
+	/// <see cref="MaxColumns"/>.
 	///
-	/// A uniform tile height is what forced the old clamp, and a clamped tile no longer
-	/// matches the aspect ratio DWM letterboxes its thumbnail into, which is where the
-	/// empty bands came from. Here the tile height is the window's true aspect ratio and
-	/// the height differences are absorbed by the packing instead.
+	/// A tile is never stretched to the column: its height is its window's true aspect ratio,
+	/// because DWM letterboxes the thumbnail at that ratio and any other height shows up as an
+	/// empty band, and its width says how much of its monitor that window fills. The column
+	/// only bounds a tile; the size differences are absorbed by the packing.
 	/// </summary>
 	public class MasonryPanel : Panel
 	{
@@ -83,13 +84,14 @@ namespace StageManager
 			for (int i = 0; i < InternalChildren.Count; i++)
 			{
 				var child = InternalChildren[i];
-				child.Arrange(new Rect(_origins[i], new Size(ColumnWidth, child.DesiredSize.Height)));
+				child.Arrange(new Rect(_origins[i], child.DesiredSize));
 			}
 			return finalSize;
 		}
 
 		// Place every child into the shortest column, recording its origin, and return the
-		// height of the tallest column.
+		// height of the tallest column. A tile narrower than the column is centred in it, so a
+		// column of mixed-width tiles still reads as a column.
 		private double Pack(int columns)
 		{
 			var heights = new double[columns];
@@ -98,7 +100,8 @@ namespace StageManager
 			foreach (UIElement child in InternalChildren)
 			{
 				var column = ShortestColumn(heights);
-				_origins.Add(new Point(column * (ColumnWidth + Gap), heights[column]));
+				var inset = Math.Max(0, ColumnWidth - child.DesiredSize.Width) / 2;
+				_origins.Add(new Point(column * (ColumnWidth + Gap) + inset, heights[column]));
 				heights[column] += child.DesiredSize.Height + Gap;
 			}
 

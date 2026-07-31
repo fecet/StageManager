@@ -13,6 +13,7 @@ namespace StageManager
 		private string _title;
 		private ImageSource _icon;
 		private bool _isFocused;
+		private double _thumbWidth = 180;
 		private double _thumbHeight = 108;
 
 		public WindowTile(IntPtr handle)
@@ -48,7 +49,23 @@ namespace StageManager
 			}
 		}
 
-		// Thumbnail height for a fixed column width, set from the window's real aspect ratio.
+		// Thumbnail width, set from how much of its monitor the window fills: a tile at the full
+		// column width belongs to a window covering its screen, a narrow one to a small window.
+		public double ThumbWidth
+		{
+			get => _thumbWidth;
+			set
+			{
+				if (_thumbWidth == value)
+					return;
+
+				_thumbWidth = value;
+				OnPropertyChanged(nameof(ThumbWidth));
+				OnPropertyChanged(nameof(LabelMaxWidth));
+			}
+		}
+
+		// Thumbnail height, set from the window's real aspect ratio against ThumbWidth.
 		public double ThumbHeight
 		{
 			get => _thumbHeight;
@@ -61,6 +78,10 @@ namespace StageManager
 				OnPropertyChanged(nameof(ThumbHeight));
 			}
 		}
+
+		// The title chip tracks the tile it sits on instead of a fixed width, leaving the
+		// rounded corners clear on a tile of any size.
+		public double LabelMaxWidth => Math.Max(0, _thumbWidth - 8);
 
 		public bool IsFocused
 		{
