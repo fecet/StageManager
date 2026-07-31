@@ -72,9 +72,18 @@ namespace StageManager
 			set => SetValue(ContentAspectProperty, value);
 		}
 
-		// Translate the monitor work area into the DIP budget the masonry may use. Done at
-		// Loaded, not OnSourceInitialized: the per-monitor DPI context is not settled that
-		// early, so WorkArea would read as raw pixels and the caps would come out far too big.
+		// The DPI context is not necessarily settled even at Loaded: the window can still report
+		// 96 there and only pick up its monitor's scaling on the way to the first frame, which
+		// leaves the limits computed from raw pixels and several times too large. Recompute
+		// whenever the scaling actually arrives.
+		protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+		{
+			base.OnDpiChanged(oldDpi, newDpi);
+			ApplyWorkAreaLimits();
+			AnchorToMonitor();
+		}
+
+		// Translate the monitor work area into the DIP budget the masonry may use.
 		private void ApplyWorkAreaLimits()
 		{
 			var dpi = VisualTreeHelper.GetDpi(this);
