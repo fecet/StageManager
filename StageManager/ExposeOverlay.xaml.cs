@@ -61,6 +61,17 @@ namespace StageManager
 			set => SetValue(ContentWidthLimitProperty, value);
 		}
 
+		/// <summary>Shape the packed tiles aim for: this monitor's own aspect ratio.</summary>
+		public static readonly DependencyProperty ContentAspectProperty = DependencyProperty.Register(
+			nameof(ContentAspect), typeof(double), typeof(ExposeOverlay),
+			new PropertyMetadata(1.0));
+
+		public double ContentAspect
+		{
+			get => (double)GetValue(ContentAspectProperty);
+			set => SetValue(ContentAspectProperty, value);
+		}
+
 		// Translate the monitor work area into the DIP budget the masonry may use. Done at
 		// Loaded, not OnSourceInitialized: the per-monitor DPI context is not settled that
 		// early, so WorkArea would read as raw pixels and the caps would come out far too big.
@@ -70,10 +81,13 @@ namespace StageManager
 			if (dpi.DpiScaleX <= 0 || dpi.DpiScaleY <= 0)
 				return;
 
-			MaxHeight = (_work.Bottom - _work.Top) / dpi.DpiScaleY - 2 * EdgeGap;
+			var workWidth = (_work.Right - _work.Left) / dpi.DpiScaleX;
+			var workHeight = (_work.Bottom - _work.Top) / dpi.DpiScaleY;
+
+			MaxHeight = workHeight - 2 * EdgeGap;
 			ContentHeightLimit = MaxHeight - 2 * ContentPadding;
-			ContentWidthLimit = (_work.Right - _work.Left) / dpi.DpiScaleX * MaxWidthFraction
-				- 2 * ContentPadding;
+			ContentWidthLimit = workWidth * MaxWidthFraction - 2 * ContentPadding;
+			ContentAspect = workWidth / workHeight;
 		}
 
 		private IntPtr Handle => new WindowInteropHelper(this).Handle;

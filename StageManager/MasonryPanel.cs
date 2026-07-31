@@ -65,6 +65,21 @@ namespace StageManager
 			set => SetValue(WidthLimitProperty, value);
 		}
 
+		/// <summary>Width over height the packed tiles should come closest to.</summary>
+		public static readonly DependencyProperty TargetAspectProperty = DependencyProperty.Register(
+			nameof(TargetAspect), typeof(double), typeof(MasonryPanel),
+			new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+		public double TargetAspect
+		{
+			get => (double)GetValue(TargetAspectProperty);
+			set => SetValue(TargetAspectProperty, value);
+		}
+
+		// Try every width the tiles could be packed into and keep the one whose result comes
+		// closest to TargetAspect, ignoring any that overflow HeightLimit. Widening only when
+		// the content overflows would leave the tiles in a single tall column whenever they
+		// happen to fit, which is the one shape an overview should never be.
 		protected override Size MeasureOverride(Size availableSize)
 		{
 			var widest = 0d;
@@ -75,13 +90,43 @@ namespace StageManager
 			}
 
 			var limit = Math.Max(widest, WidthLimit);
-			var width = widest;
-			while (width < limit && Pack(width).Height > HeightLimit)
-				width = Math.Min(limit, width + WidthStep);
+			var best = widest;
+			var bestScore = double.MaxValue;
+			var fits = false;
+
+			for (var width = widest; width <= limit + 0.01; width += WidthStep)
+			{
+				var size = Pack(width);
+				var overflows = size.Height > HeightLimit;
+
+				// Prefer any width that fits over any that does not, and among equals the one
+				// closest to the target shape. Log keeps "twice as wide" and "half as wide"
+				// the same distance from it.
+				if (fits && overflows)
+					continue;
+
+				var score = size.Height > 0
+					? Math.Abs(Math.Log(size.Width / size.Height / TargetAspect))
+					: double.MaxValue;
+
+				if (!fits && !overflows)
+				{
+					fits = true;
+					bestScore = score;
+					best = width;
+					continue;
+				}
+
+				if (score < bestScore)
+				{
+					bestScore = score;
+					best = width;
+				}
+			}
 
 			// Report the rectangle the tiles actually occupy, not the width they were packed
-			// into: the last step usually overshoots, and the difference would be dead margin.
-			_packed = Pack(width);
+			// into: the chosen step usually overshoots, and the difference would be dead margin.
+			_packed = Pack(best);
 			return _packed;
 		}
 

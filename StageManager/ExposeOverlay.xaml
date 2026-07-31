@@ -33,7 +33,8 @@
                             Gap="8"
                             WidthStep="96"
                             HeightLimit="{Binding ContentHeightLimit, ElementName=thisWindow}"
-                            WidthLimit="{Binding ContentWidthLimit, ElementName=thisWindow}" />
+                            WidthLimit="{Binding ContentWidthLimit, ElementName=thisWindow}"
+                            TargetAspect="{Binding ContentAspect, ElementName=thisWindow}" />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
