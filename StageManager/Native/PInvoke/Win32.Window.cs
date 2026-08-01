@@ -69,9 +69,6 @@ namespace StageManager.Native.PInvoke
         [DllImport("user32.dll")]
         public static extern bool GetTitleBarInfo(IntPtr hwnd, ref TitleBarInfo info);
 
-        [DllImport("user32.dll")]
-        public static extern IntPtr GetLastActivePopup(IntPtr hwnd);
-
         [Flags()]
         public enum SetWindowPosFlags : uint
         {
