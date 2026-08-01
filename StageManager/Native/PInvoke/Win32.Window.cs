@@ -55,6 +55,23 @@ namespace StageManager.Native.PInvoke
         [DllImport("user32.dll")]
         public static extern uint GetDpiForWindow(IntPtr hwnd);
 
+        public const uint STATE_SYSTEM_INVISIBLE = 0x00008000;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct TitleBarInfo
+        {
+            public uint Size;
+            public Rect TitleBar;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
+            public uint[] State;
+        }
+
+        [DllImport("user32.dll")]
+        public static extern bool GetTitleBarInfo(IntPtr hwnd, ref TitleBarInfo info);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetLastActivePopup(IntPtr hwnd);
+
         [Flags()]
         public enum SetWindowPosFlags : uint
         {

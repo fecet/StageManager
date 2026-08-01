@@ -175,10 +175,6 @@ namespace StageManager.Native
 			}
 		}
 
-		// Smallest a window may be and still be worth switching to. Apps park helper windows
-		// just off this size - Moonlight's Qt tool window is 90x90, a QQLive widget 50x200.
-		private const int MinCandidateSide = 120;
-
 		public bool IsCandidate()
 		{
 			if (!CanLayout)
@@ -223,15 +219,6 @@ namespace StageManager.Native
 
 			if (ignoreProcesses.Contains(ProcessName))
 				return false;
-
-			// Too small to be a window the user switches to. Minimized windows report the iconic
-			// placeholder rather than their own size, so they are exempt.
-			if (!IsMinimized)
-			{
-				var location = Location;
-				if (location.Width < MinCandidateSide || location.Height < MinCandidateSide)
-					return false;
-			}
 
 			return true;
 		}
